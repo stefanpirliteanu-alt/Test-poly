@@ -63,7 +63,8 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 .bd.fl{background:#ffffff10;color:var(--mu)}.bd.sm{background:#e9c46a22;color:var(--ac)}.bd.bu{background:#4fd18b33;color:var(--up)}.bd.bd2{background:#ff6b5733;color:var(--dn)}
 .mv{font-size:12px;color:var(--mu);margin-top:4px}
 .mn{margin-top:8px;font-size:13px}.mn small{color:var(--mu)}
-.bar{height:6px;background:#ffffff14;border-radius:3px;margin:5px 0;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac)}
+.mbar{height:6px;background:#ffffff14;border-radius:3px;margin:5px 0;overflow:hidden}.mbar i{display:block;height:100%;background:var(--ac)}
+#help{background:var(--s);border-radius:10px;margin:8px 0;padding:8px 12px;font:13px/1.55 system-ui,sans-serif}#help summary{cursor:pointer;color:var(--ac);font-weight:600}#help p{margin:8px 0}
 #sum{background:var(--s);border-radius:10px;padding:2px 12px;margin:8px 0;font:14px/1.45 system-ui,sans-serif}#sum p{margin:8px 0}
 </style>
 </head>
@@ -101,6 +102,12 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
   <div class="sh">
     <div class="top"><button id="x" aria-label="Închide">✕</button><div><h2 id="sh-t"></h2><div class="meta" id="sh-m"></div></div></div>
     <div id="sum"></div>
+    <details id="help"><summary>Cum citesc procentele și cotele?</summary>
+      <p><b>Procentul</b> (ex. 52%) arată cât de probabil crede piața acel rezultat: 52 de șanse din 100.</p>
+      <p><b>Cota</b> (ex. 1.94) = 1 împărțit la procent. Dacă pariezi 100 și iese, primești 194. Procent mai mare = cotă mai mică.</p>
+      <p><b>pp</b> = puncte procentuale. „+9 pp" înseamnă că procentul a urcat cu 9 puncte, de exemplu de la 43% la 52%, iar cota a scăzut de la 2.33 la 1.94. Piața crede acum mai mult în acel rezultat.</p>
+      <p><b>Mișcare bruscă</b> = schimbare mare în 30 min. Poate veni din bani mulți, din știri (formații, accidentări) sau, la piețe mici, dintr-o singură tranzacție.</p>
+    </details>
     <div class="bar" id="rng" style="padding:4px 0"></div>
     <div id="chartbox"><div id="legend"></div><div id="chart"></div><div id="tip"></div></div>
     <div class="meta" id="book"></div>
@@ -246,18 +253,33 @@ function detect(now){
 }
 
 /* ---------- Data API: pariuri mari ---------- */
+const tsMs=v=>typeof v==='number'?(v>1e12?v:v*1000):(Date.parse(v)||0);
+function normTrades(r){
+  const a=Array.isArray(r)?r:(r&&Array.isArray(r.data)?r.data:[]);
+  return a.map(t=>({cid:t.condition_id||t.conditionId,side:String(t.side||'').toUpperCase(),size:+t.size,price:+t.price,ts:tsMs(t.timestamp),outcome:t.outcome,hash:t.transaction_hash||t.transactionHash||''}));
+}
+async function fetchTrades(cids,limit){
+  let out=[];
+  for(let i=0;i<cids.length;i+=20){
+    const r=await jget(`${D}/v2/trades?condition=${cids.slice(i,i+20).join(',')}&limit=${limit}`);
+    out=out.concat(normTrades(r));
+  }
+  return out;
+}
 async function loadTrades(){
   const minv=+$('bigv').value||2000;
-  const r=await jget(`${D}/trades?limit=500&filterType=CASH&filterAmount=${minv}`);
-  const first=S.trFirst;S.trFirst=false;
-  for(const t of (Array.isArray(r)?r:[])){
-    const mk=S.mk.get(t.conditionId); if(!mk) continue;
-    const key=t.transactionHash+'|'+t.asset+'|'+t.size; if(S.seenTr.has(key)) continue; S.seenTr.add(key);
+  const cids=[...new Set(cur().sort((a,b)=>b.vol-a.vol).map(x=>x.m.conditionId).filter(Boolean))].slice(0,40);
+  if(!cids.length) return;
+  const r=await fetchTrades(cids,300);
+  const first=S.trSport!==S.sport;S.trSport=S.sport;
+  for(const t of r){
+    const mk=S.mk.get(t.cid); if(!mk) continue;
     const cash=t.size*t.price; if(!(cash>=minv)) continue;
-    const tr={t:t.timestamp*1000,evId:mk.ev.id,ev:mk.ev.title,tags:evSports(mk.ev),type:mk.type,side:t.side,
+    const key=t.hash+'|'+t.outcome+'|'+t.size; if(S.seenTr.has(key)) continue; S.seenTr.add(key);
+    const tr={t:t.ts,evId:mk.ev.id,ev:mk.ev.title,tags:evSports(mk.ev),type:mk.type,side:t.side,
       label:mk.yn?`${t.outcome} · ${mk.line}`:t.outcome,cash,price:t.price,live:isLive(mk.ev)};
     S.trades.push(tr);
-    if(!first&&S.sports.size&&tr.tags.includes(S.sport)){try{new Notification(`${t.side==='BUY'?'▲':'▼'} $${Math.round(cash)} · ${tr.label}`,{body:tr.ev})}catch(e){}}
+    if(!first){try{new Notification(`${t.side==='BUY'?'▲':'▼'} $${Math.round(cash)} · ${tr.label}`,{body:tr.ev})}catch(e){}}
   }
   S.trades.sort((a,b)=>b.t-a.t); S.trades=S.trades.slice(0,200);
 }
@@ -355,18 +377,18 @@ async function loadDetData(evId){
 }
 async function detTrades(evId){
   const list=(S.byEv.get(evId)||[]).slice().sort((a,b)=>b.vol-a.vol);
-  const cids=[...new Set(list.map(x=>x.m.conditionId).filter(Boolean))].slice(0,30);
+  const cids=[...new Set(list.map(x=>x.m.conditionId).filter(Boolean))].slice(0,20);
   if(!cids.length) return;
   try{
-    const r=await jget(`${D}/trades?market=${cids.join(',')}&limit=1000`);
+    const r=await fetchTrades(cids,1000);
     if(!S.dd||S.dd.evId!==evId) return;
     const agg={};let since=Infinity;
-    for(const t of (Array.isArray(r)?r:[])){
-      const k=t.conditionId+'|'+t.outcome,a=agg[k]||(agg[k]={buy:0,sell:0,n:0,max:0}),c=t.size*t.price;
+    for(const t of r){
+      const k=t.cid+'|'+t.outcome,a=agg[k]||(agg[k]={buy:0,sell:0,n:0,max:0}),c=t.size*t.price;
       if(t.side==='BUY') a.buy+=c; else a.sell+=c;
-      a.n++; a.max=Math.max(a.max,c); since=Math.min(since,t.timestamp*1000);
+      a.n++; a.max=Math.max(a.max,c); if(t.ts) since=Math.min(since,t.ts);
     }
-    S.dd.agg=agg;S.dd.n=Array.isArray(r)?r.length:0;S.dd.since=isFinite(since)?since:0;S.dd.err='';
+    S.dd.agg=agg;S.dd.n=r.length;S.dd.since=isFinite(since)?since:0;S.dd.err='';
   }catch(e){if(S.dd&&S.dd.evId===evId) S.dd.err=e.message}
   renderDetRows();
 }
@@ -385,8 +407,9 @@ async function detHist(evId,list){
 function moves(it){
   const h=(S.dd&&S.dd.hist.get(it.id))||S.hist.get(it.id);
   if(!h||h.length<2) return null;
-  const now=Date.now(),at=min=>(it.p-(h.find(x=>x.t>=now-min*60e3)||h[0]).p)*100;
-  return {m30:at(30),h1:at(60),h6:at(360)};
+  const now=Date.now(),ref=min=>(h.find(x=>x.t>=now-min*60e3)||h[0]).p;
+  const r30=ref(30);
+  return {m30:(it.p-r30)*100,h1:(it.p-ref(60))*100,h6:(it.p-ref(360))*100,r30};
 }
 function badge(m,thr){
   if(!m) return '<span class="bd fl">fără istoric</span>';
@@ -397,15 +420,15 @@ function badge(m,thr){
 }
 function cardHtml(it,thr){
   const mv=moves(it),dd=S.dd;let money;
-  if(dd.err) money=`<div class="mn">Pariuri: indisponibil (${esc(dd.err)})</div>`;
+  if(dd.err) money=`<div class="mn">Pariurile nu s-au putut încărca (${esc(dd.err)}). Reîncerc la următoarea actualizare.</div>`;
   else if(!dd.agg) money='<div class="mn">Se încarcă pariurile…</div>';
   else{
     const cid=it.m.conditionId,a=dd.agg[cid+'|'+it.o]||{buy:0,sell:0,n:0,max:0};
     const tot=Object.keys(dd.agg).filter(k=>k.startsWith(cid+'|')).reduce((s,k)=>s+dd.agg[k].buy,0);
     const share=tot>0?a.buy/tot*100:0;
-    money=`<div class="mn"><b>${usd(a.buy)}</b> pariați pe acest rezultat${tot>0?` (${share.toFixed(0)}% din banii cumpărați pe această piață)`:''}<div class="bar"><i style="width:${share.toFixed(0)}%"></i></div><small>${a.n} tranzacții · cel mai mare pariu ${usd(a.max)}${a.sell>0?` · vândut ${usd(a.sell)}`:''}</small></div>`;
+    money=`<div class="mn"><b>${usd(a.buy)}</b> pariați pe acest rezultat${tot>0?` (${share.toFixed(0)}% din banii cumpărați pe această piață)`:''}<div class="mbar"><i style="width:${share.toFixed(0)}%"></i></div><small>${a.n} tranzacții · cel mai mare pariu ${usd(a.max)}${a.sell>0?` · vândut ${usd(a.sell)}`:''}</small></div>`;
   }
-  return `<div class="card ${it.id===S.det.id?'sel':''}" data-id="${it.id}"><div class="ch"><span class="cl">${esc(it.label)}</span><span class="cp">${(it.p*100).toFixed(0)}%<small>cota ${odds(it.p)}</small></span></div>${badge(mv,thr)}${mv?`<div class="mv">30 min ${fmt(mv.m30)} · 1 h ${fmt(mv.h1)} · 6 h ${fmt(mv.h6)} pp</div>`:''}${money}</div>`;
+  return `<div class="card ${it.id===S.det.id?'sel':''}" data-id="${it.id}"><div class="ch"><span class="cl">${esc(it.label)}</span><span class="cp">${(it.p*100).toFixed(0)}%<small>cota ${odds(it.p)}</small></span></div>${badge(mv,thr)}${mv&&Math.abs(mv.m30)>=0.5?`<div class="mv">Acum 30 min: <b>${(mv.r30*100).toFixed(0)}%</b> (cota ${odds(mv.r30)}) → acum: <b>${(it.p*100).toFixed(0)}%</b> (cota ${odds(it.p)})</div>`:''}${mv?`<div class="mv">Variație: 30 min ${fmt(mv.m30)} · 1 h ${fmt(mv.h1)} · 6 h ${fmt(mv.h6)} pp</div>`:''}${money}</div>`;
 }
 function renderSum(list,thr){
   const dd=S.dd,ev=list[0]&&list[0].ev; if(!ev) return;
