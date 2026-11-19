@@ -12,9 +12,10 @@ export default {
     let base;
     if (url.pathname.startsWith('/gamma/')) base = 'https://gamma-api.polymarket.com';
     else if (url.pathname.startsWith('/clob/')) base = 'https://clob.polymarket.com';
+    else if (url.pathname.startsWith('/data/')) base = 'https://data-api.polymarket.com';
     else return env.ASSETS.fetch(req); // restul cererilor: pagina
 
-    const target = base + url.pathname.replace(/^\/(gamma|clob)/, '') + url.search;
+    const target = base + url.pathname.replace(/^\/(gamma|clob|data)/, '') + url.search;
     const r = await fetch(target, {
       method: req.method,
       headers: { 'Content-Type': 'application/json', 'Origin': 'https://polymarket.com', 'Referer': 'https://polymarket.com/' },
