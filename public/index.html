@@ -2,37 +2,58 @@
 <html lang="ro">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Polymarket Sport Radar</title>
 <style>
-:root{--bg:#0e1a16;--s:#15261f;--tx:#e9f0ea;--mu:#8ea89b;--up:#4fd18b;--dn:#ff6b57;--ac:#e9c46a}
+:root{--bg:#0e1a16;--s:#15261f;--s2:#1b3027;--tx:#e9f0ea;--mu:#8ea89b;--up:#4fd18b;--dn:#ff6b57;--ac:#e9c46a}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 Georgia,"Times New Roman",serif}
-header{padding:18px 16px 10px;border-bottom:1px solid #2a4237}
+header{padding:18px 16px 8px}
 h1{margin:0;font-size:22px}
 #st{color:var(--mu);font-size:13px;margin-top:2px;font-family:system-ui,sans-serif}
-.bar{display:flex;flex-wrap:wrap;gap:10px;padding:10px 16px;font:13px system-ui,sans-serif;color:var(--mu);align-items:center}
+.bar{display:flex;flex-wrap:wrap;gap:8px;padding:6px 16px;font:13px system-ui,sans-serif;color:var(--mu);align-items:center}
+.sc{display:flex;gap:6px;overflow-x:auto;padding:8px 16px;white-space:nowrap;-webkit-overflow-scrolling:touch}
+.sc .chip{flex:none}
 .bar label{display:flex;gap:6px;align-items:center}
 input,select{background:var(--s);color:var(--tx);border:1px solid #2f4a3e;border-radius:6px;padding:6px 8px;font:inherit;max-width:100%}
-input[type=number]{width:64px}input[type=search],input[type=url]{min-width:150px;flex:1}
+input[type=number]{width:70px}input[type=search],input[type=url]{min-width:150px;flex:1}
 .chip{border:1px solid #2f4a3e;background:var(--s);color:var(--mu);border-radius:999px;padding:6px 12px;font:13px system-ui,sans-serif;cursor:pointer}
 .chip.on{background:var(--ac);color:#10201a;border-color:var(--ac);font-weight:600}
+.chip.sp.on{background:var(--up);border-color:var(--up)}
 .chip i{font-style:normal;opacity:.7;margin-left:5px}
-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:0 16px 40px}
+details{padding:4px 16px;font:13px system-ui,sans-serif;color:var(--mu)}
+details .bar{padding:8px 0}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:6px 16px 40px}
 @media(max-width:860px){main{grid-template-columns:1fr}}
 h2{font-size:15px;margin:6px 0 8px;color:var(--ac)}
-.ev{background:var(--s);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.ev{background:var(--s);border-radius:10px;padding:10px 12px;margin-bottom:10px;cursor:pointer}
 .ev h3{margin:0 0 2px;font-size:16px}
 .meta{font:12px system-ui,sans-serif;color:var(--mu);margin-bottom:6px}
-.row{display:grid;grid-template-columns:1fr 54px 78px 84px;gap:8px;align-items:center;padding:5px 0;border-top:1px solid #2a4237;font-family:system-ui,sans-serif;font-size:14px}
+.row{display:grid;grid-template-columns:1fr 54px 78px 84px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #2a4237;font-family:system-ui,sans-serif;font-size:14px}
 .row .p{font-weight:700;text-align:right}
 .d{text-align:right;font-weight:600}.up{color:var(--up)}.dn{color:var(--dn)}.fl{color:var(--mu)}
 .big{background:#ff6b5722;border-radius:6px;padding:2px 4px}.big.u{background:#4fd18b22}
 svg{display:block}
-.al{background:var(--s);border-left:3px solid var(--dn);border-radius:6px;padding:8px 10px;margin-bottom:8px;font:13px system-ui,sans-serif}
+.al{background:var(--s);border-left:3px solid var(--dn);border-radius:6px;padding:8px 10px;margin-bottom:8px;font:13px system-ui,sans-serif;cursor:pointer}
 .al.u{border-color:var(--up)}.al b{display:block;font-size:14px}.al small{color:var(--mu)}
 .sticky{position:sticky;top:8px;max-height:92vh;overflow:auto}
-.empty{color:var(--mu);font:13px system-ui,sans-serif}
+.empty{color:var(--mu);font:13px system-ui,sans-serif;padding:8px 0}
+/* detaliu */
+#sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:20}
+#sheet[hidden]{display:none}
+.sh{max-width:760px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 14px max(30px,env(safe-area-inset-bottom))}
+.top{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}
+.top h2{color:var(--tx);font-size:19px;margin:0}
+#x{flex:none;background:var(--s2);color:var(--tx);border:0;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer}
+#chartbox{background:var(--s);border-radius:10px;padding:10px;margin:8px 0}
+#chart{position:relative;touch-action:pan-y}
+#tip{font:12px system-ui,sans-serif;color:var(--tx);min-height:34px;padding:2px 2px 6px}
+#legend{display:flex;flex-wrap:wrap;gap:6px 14px;font:13px system-ui,sans-serif;margin-bottom:6px}
+#legend span i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.dr{display:grid;grid-template-columns:1fr 56px 78px;gap:8px;padding:9px 8px;border-radius:8px;font:14px system-ui,sans-serif;cursor:pointer;align-items:center}
+.dr.sel{background:var(--s2);outline:1px solid var(--ac)}
+.dr .p{font-weight:700;text-align:right}
+h4{margin:14px 0 4px;color:var(--ac);font-size:14px}
 </style>
 </head>
 <body>
@@ -40,33 +61,44 @@ svg{display:block}
   <h1>Polymarket Sport Radar</h1>
   <div id="st">Se încarcă…</div>
 </header>
+<div class="sc" id="sports"></div>
 <div class="bar" id="chips"></div>
 <div class="bar">
-  <label>Alertă la ≥ <input id="thr" type="number" min="1" max="50" value="5"> pp</label>
-  <label>în ultimele
-    <select id="win"><option value="5">5 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 oră</option><option value="180">3 ore</option></select>
-  </label>
-  <label>Refresh
-    <select id="ref"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select>
-  </label>
-  <label>Sport <select id="sport"><option value="">Toate</option></select></label>
-  <label>Sortare
-    <select id="sort"><option value="mov">Cele mai mari mișcări</option><option value="vol">Volum 24h</option></select>
-  </label>
+  <label>Alertă ≥ <input id="thr" type="number" min="1" max="50" value="5"> pp</label>
+  <label>în <select id="win"><option value="5">5 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 oră</option><option value="180">3 ore</option></select></label>
+  <label>Sortare <select id="sort"><option value="mov">Mișcări</option><option value="vol">Volum 24h</option></select></label>
   <label><input id="hide" type="checkbox" checked> ascunde ≤2% / ≥98%</label>
   <input id="q" type="search" placeholder="Caută echipă / meci">
-  <input id="wk" type="url" placeholder="URL Worker (opțional dacă pagina rulează pe workers.dev)" style="flex-basis:100%">
 </div>
+<details><summary>Setări avansate</summary>
+  <div class="bar">
+    <label>Refresh <select id="ref"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></label>
+    <label>Volum min. alerte $ <input id="minv" type="number" min="0" value="500"></label>
+    <input id="wk" type="url" placeholder="URL Worker (opțional dacă pagina rulează pe workers.dev)" style="flex-basis:100%">
+  </div>
+</details>
 <main>
   <section><div id="list"></div></section>
   <aside><div class="sticky"><h2>Alerte mișcări bruște</h2><div id="alerts"></div></div></aside>
 </main>
 
+<div id="sheet" hidden>
+  <div class="sh">
+    <div class="top"><button id="x" aria-label="Închide">✕</button><div><h2 id="sh-t"></h2><div class="meta" id="sh-m"></div></div></div>
+    <div class="bar" id="rng" style="padding:4px 0"></div>
+    <div id="chartbox"><div id="legend"></div><div id="chart"></div><div id="tip"></div></div>
+    <div class="meta" id="book"></div>
+    <div id="drows"></div>
+  </div>
+</div>
+
 <script>
 const G='https://gamma-api.polymarket.com', C='https://clob.polymarket.com';
 const $=id=>document.getElementById(id);
-const TYPES=[['ml','Moneyline'],['spread','Handicap'],['total','Total (O/U)'],['btts','Ambele marchează'],['half','Repriză / sfert'],['prop','Prop-uri']];
-const S={items:new Map(),hist:new Map(),alerts:[],cool:{},seeded:new Set(),types:new Set(['ml']),timer:null};
+const TYPES=[['ml','Moneyline'],['out','Câștigător final'],['spread','Handicap'],['total','Total (O/U)'],['btts','Ambele marchează'],['half','Repriză / sfert'],['prop','Prop-uri']];
+const RANGES={'1h':{n:'1h',c:['1h',1]},'6h':{n:'6h',c:['6h',5]},'1d':{n:'1 zi',c:['1d',15]},'1w':{n:'1 săpt',c:['1w',60]},'max':{n:'Max',c:['max',360]}};
+const COL=['#4fd18b','#ff6b57','#e9c46a','#6ab0ff','#c792ea','#ff9f6b'];
+const S={items:new Map(),byEv:new Map(),sports:new Map(),sport:'',hist:new Map(),alerts:[],cool:{},seeded:new Set(),types:new Set(['ml']),timer:null,det:null,tok:0};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const arr=v=>{try{return typeof v==='string'?JSON.parse(v):(v||[])}catch{return[]}};
 const tname=k=>(TYPES.find(t=>t[0]===k)||[,k])[1];
@@ -78,10 +110,6 @@ const SAME=/\.workers\.dev$/.test(location.hostname)?location.origin:'';
 const W=()=>($('wk').value||'').trim().replace(/\/+$/,'')||SAME;
 async function jget(u,o){
   if(W()){const r=await fetch(u.replace(G,W()+'/gamma').replace(C,W()+'/clob'),o);if(!r.ok)throw new Error(r.status);return r.json()}
-  if(o&&o.method==='POST'){
-    if(route!==0) throw new Error('POST indisponibil prin proxy');
-    const r=await fetch(u,o);if(!r.ok)throw new Error(r.status);return r.json();
-  }
   let err;
   for(let k=0;k<ROUTES.length;k++){
     const i=(route+k)%ROUTES.length;
@@ -90,7 +118,7 @@ async function jget(u,o){
   throw err;
 }
 
-/* ---------- clasificare tip pariu ---------- */
+/* ---------- clasificare ---------- */
 function mtype(m){
   const t=(m.sportsMarketType||'').toLowerCase(),q=((m.question||'')+' '+(m.groupItemTitle||'')).toLowerCase();
   if(t){
@@ -108,13 +136,21 @@ function mtype(m){
   if(/first |exact|score|mvp|player|points|goals|assists|rebounds|yards|strikeouts|touchdown|win by/.test(q)) return 'prop';
   return 'ml';
 }
+const evSports=ev=>{const t=(ev.tags||[]).map(x=>x.label).filter(l=>l&&!/^(sports|games|all|hide from new)$/i.test(l));return t.length?[...new Set(t)]:['Altele']};
 
 /* ---------- Gamma ---------- */
 async function loadGamma(){
-  const evs=await jget(`${G}/events?tag_id=1&active=true&closed=false&limit=200&order=volume24hr&ascending=false`);
-  const seen=new Set();
+  let evs=[];
+  for(const off of [0,200]){
+    try{evs=evs.concat(await jget(`${G}/events?tag_id=1&active=true&closed=false&limit=200&offset=${off}&order=volume24hr&ascending=false`))}
+    catch(e){if(off===0) throw e}
+  }
+  const seen=new Set(),doneEv=new Set(),sports=new Map();
+  S.byEv=new Map();
   for(const ev of evs){
-    const tags=(ev.tags||[]).map(t=>t.label).filter(l=>l&&!/^(sports|games|all)$/i.test(l));
+    if(doneEv.has(ev.id)) continue; doneEv.add(ev.id);
+    const tags=evSports(ev); tags.forEach(t=>sports.set(t,(sports.get(t)||0)+1));
+    const list=[];
     for(const m of (ev.markets||[])){
       if(m.closed||m.active===false) continue;
       const outs=arr(m.outcomes),prices=arr(m.outcomePrices),toks=arr(m.clobTokenIds);
@@ -125,46 +161,41 @@ async function loadGamma(){
         if(yn&&i===1) return;
         const id=toks[i]; if(!id) return;
         seen.add(id);
-        S.items.set(id,{id,ev,m,type,tags,
+        const it={id,ev,evId:ev.id,mid:m.id,m,type,tags,
           label:yn?line:(type==='ml'?o:`${o}: ${line}`),
-          p:parseFloat(prices[i]),vol:+m.volume24hr||+ev.volume24hr||0});
+          p:parseFloat(prices[i]),vol:+m.volume24hr||0};
+        S.items.set(id,it); list.push(it);
       });
     }
+    const mls=new Set(list.filter(x=>x.type==='ml').map(x=>x.mid));
+    if(mls.size>=6) list.forEach(x=>{if(x.type==='ml')x.type='out'});   // turnee / campionate: câștigător final
+    S.byEv.set(ev.id,list);
   }
   for(const id of [...S.items.keys()]) if(!seen.has(id)) S.items.delete(id);
+  S.sports=sports;
 }
 const sel=()=>[...S.items.values()].filter(x=>S.types.has(x.type));
+const cur=()=>sel().filter(x=>!S.sports.size||x.tags.includes(S.sport));
 
-/* ---------- CLOB ---------- */
-async function loadMidpoints(){
-  if(route!==0&&!W()) return;
-  const ids=sel().sort((a,b)=>b.vol-a.vol).slice(0,300).map(x=>x.id);
-  for(let i=0;i<ids.length;i+=100){
-    try{
-      const r=await jget(`${C}/midpoints`,{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(ids.slice(i,i+100).map(token_id=>({token_id})))});
-      for(const [id,v] of Object.entries(r)){const it=S.items.get(id),p=parseFloat(v);if(it&&p>=0)it.p=p}
-    }catch(e){}
-  }
-}
+/* ---------- CLOB: istoric pentru alerte ---------- */
 async function seedHistory(){
-  const top=sel().filter(x=>x.p>0.02&&x.p<0.98&&!S.seeded.has(x.id)).sort((a,b)=>b.vol-a.vol).slice(0,40);
+  const top=cur().filter(x=>x.p>0.03&&x.p<0.97&&!S.seeded.has(x.id)).sort((a,b)=>b.vol-a.vol).slice(0,40);
   let k=0;
   await Promise.all(Array.from({length:5},async()=>{
     while(k<top.length){
       const it=top[k++]; S.seeded.add(it.id);
       try{
         const r=await jget(`${C}/prices-history?market=${it.id}&interval=6h&fidelity=5`);
-        S.hist.set(it.id,(r.history||[]).map(x=>({t:x.t*1000,p:x.p})));
+        const h=(r.history||[]).map(x=>({t:x.t*1000,p:x.p}));
+        // istoric incoerent cu prețul curent = date nesigure, nu le folosim
+        if(h.length&&Math.abs(h[h.length-1].p-it.p)<=0.15) S.hist.set(it.id,h);
       }catch(e){}
     }
   }));
 }
-
-/* ---------- logică alerte ---------- */
 function record(now){
   const keep=now-6*3600e3;
-  for(const it of S.items.values()){
+  for(const it of cur()){
     if(!(it.p>=0)) continue;
     const h=S.hist.get(it.id)||[];
     h.push({t:now,p:it.p});
@@ -178,20 +209,23 @@ function delta(id,winMin,now){
   return (h[h.length-1].p-ref.p)*100;
 }
 function detect(now){
-  const thr=+$('thr').value||5,win=+$('win').value;
-  for(const it of sel()){
-    const d=delta(it.id,win,now);
-    if(d===null||Math.abs(d)<thr) continue;
+  const thr=+$('thr').value||5,win=+$('win').value,minv=+$('minv').value||0;
+  for(const it of cur()){
+    if(it.vol<minv) continue;
+    const h=S.hist.get(it.id); if(!h||h.length<2) continue;
+    const ref=h.find(x=>x.t>=now-win*60e3)||h[0];
+    if(Math.min(ref.p,it.p)<0.03||Math.max(ref.p,it.p)>0.97) continue;
+    const d=(it.p-ref.p)*100;
+    if(Math.abs(d)<thr) continue;
     if(now-(S.cool[it.id]||0)<win*60e3) continue;
     S.cool[it.id]=now;
-    const h=S.hist.get(it.id),ref=h.find(x=>x.t>=now-win*60e3)||h[0];
-    S.alerts.unshift({t:now,ev:it.ev.title,label:it.label,type:it.type,from:ref.p*100,to:it.p*100,d});
+    S.alerts.unshift({t:now,id:it.id,evId:it.evId,ev:it.ev.title,label:it.label,type:it.type,from:ref.p*100,to:it.p*100,d});
     S.alerts=S.alerts.slice(0,60);
     try{new Notification(`${d<0?'▼':'▲'} ${it.label} ${d.toFixed(1)} pp`,{body:it.ev.title})}catch(e){}
   }
 }
 
-/* ---------- UI ---------- */
+/* ---------- UI listă ---------- */
 function spark(id){
   const h=S.hist.get(id)||[]; if(h.length<2) return '';
   const w=80,ht=22,min=Math.min(...h.map(x=>x.p)),max=Math.max(...h.map(x=>x.p)),r=(max-min)||1;
@@ -199,71 +233,186 @@ function spark(id){
   const pts=h.map(x=>`${((x.t-t0)/tr*w).toFixed(1)},${(ht-2-(x.p-min)/r*(ht-4)).toFixed(1)}`).join(' ');
   return `<svg width="${w}" height="${ht}" viewBox="0 0 ${w} ${ht}"><polyline fill="none" stroke="${h[h.length-1].p>=h[0].p?'#4fd18b':'#ff6b57'}" stroke-width="1.5" points="${pts}"/></svg>`;
 }
-function renderChips(){
-  const cnt={};for(const it of S.items.values()) cnt[it.type]=(cnt[it.type]||0)+1;
-  $('chips').innerHTML=TYPES.map(([k,n])=>`<button class="chip ${S.types.has(k)?'on':''}" data-k="${k}">${n}<i>${cnt[k]||0}</i></button>`).join('');
-}
 function renderSports(){
-  const c={};for(const it of S.items.values()) for(const t of it.tags) c[t]=(c[t]||0)+1;
-  const cur=$('sport').value,names=Object.keys(c).sort((a,b)=>c[b]-c[a]);
-  $('sport').innerHTML='<option value="">Toate</option>'+names.map(n=>`<option ${n===cur?'selected':''} value="${esc(n)}">${esc(n)} (${c[n]})</option>`).join('');
+  const top=[...S.sports.entries()].sort((a,b)=>b[1]-a[1]);
+  if(!top.length){$('sports').innerHTML='';return}
+  if(!S.sport||!S.sports.has(S.sport)) S.sport=top[0][0];
+  const head=top.slice(0,8).map(x=>x[0]),rest=top.slice(8);
+  const chip=n=>`<button class="chip sp ${n===S.sport?'on':''}" data-s="${esc(n)}">${esc(n)}<i>${S.sports.get(n)}</i></button>`;
+  let h=head.map(chip).join('');
+  if(!head.includes(S.sport)) h+=chip(S.sport);
+  if(rest.length) h+=`<select id="more"><option value="">Alt sport…</option>${rest.map(([n,c])=>`<option value="${esc(n)}">${esc(n)} (${c})</option>`).join('')}</select>`;
+  $('sports').innerHTML=h;
+}
+function renderChips(){
+  const cnt={};for(const it of S.items.values()) if(!S.sports.size||it.tags.includes(S.sport)) cnt[it.type]=(cnt[it.type]||0)+1;
+  $('chips').innerHTML=TYPES.map(([k,n])=>`<button class="chip ${S.types.has(k)?'on':''}" data-k="${k}">${n}<i>${cnt[k]||0}</i></button>`).join('');
 }
 function render(){
   const now=Date.now(),win=+$('win').value,thr=+$('thr').value||5;
-  const q=$('q').value.trim().toLowerCase(),sort=$('sort').value,sp=$('sport').value,hide=$('hide').checked;
+  const q=$('q').value.trim().toLowerCase(),sort=$('sort').value,hide=$('hide').checked;
   const groups=new Map();
-  for(const it of sel()){
-    if(sp&&!it.tags.includes(sp)) continue;
+  for(const it of cur()){
     if(hide&&(it.p<=0.02||it.p>=0.98)) continue;
     if(q&&!(it.ev.title+' '+it.label).toLowerCase().includes(q)) continue;
-    const g=groups.get(it.ev.id)||{ev:it.ev,rows:[],mov:0,vol:+it.ev.volume24hr||0};
+    const g=groups.get(it.evId)||{ev:it.ev,rows:[],mov:0,vol:+it.ev.volume24hr||0};
     it.d=delta(it.id,win,now);
     g.mov=Math.max(g.mov,Math.abs(it.d||0));
-    g.rows.push(it); groups.set(it.ev.id,g);
+    g.rows.push(it); groups.set(it.evId,g);
   }
-  const gs=[...groups.values()].sort((a,b)=>sort==='mov'?b.mov-a.mov:b.vol-a.vol).slice(0,80);
+  const gs=[...groups.values()].sort((a,b)=>sort==='mov'?b.mov-a.mov:b.vol-a.vol).slice(0,60);
   $('list').innerHTML=gs.length?gs.map(g=>{
-    const dt=g.ev.endDate||g.ev.startDate?new Date(g.ev.endDate||g.ev.startDate).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'}):'';
-    const rows=g.rows.sort((a,b)=>Math.abs(b.d||0)-Math.abs(a.d||0)).map(it=>{
+    const t=g.ev.startTime||g.ev.endDate||g.ev.startDate;
+    const dt=t?new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'}):'';
+    const rows=g.rows.sort((a,b)=>b.p-a.p).slice(0,12).map(it=>{
       const d=it.d,big=d!==null&&Math.abs(d)>=thr;
       const cls=d===null||Math.abs(d)<0.05?'fl':d>0?'up':'dn';
-      return `<div class="row"><span>${esc(it.label)}</span><span class="p">${(it.p*100).toFixed(1)}%</span><span class="d ${cls} ${big?'big '+(d>0?'u':''):''}">${d===null?'–':(d>0?'+':'')+d.toFixed(1)+' pp'}</span>${spark(it.id)}</div>`;
+      return `<div class="row" data-id="${it.id}"><span>${esc(it.label)}</span><span class="p">${(it.p*100).toFixed(1)}%</span><span class="d ${cls} ${big?'big '+(d>0?'u':''):''}">${d===null?'–':(d>0?'+':'')+d.toFixed(1)+' pp'}</span>${spark(it.id)}</div>`;
     }).join('');
-    return `<div class="ev"><h3>${esc(g.ev.title)}</h3><div class="meta">${esc(dt)} · vol 24h $${Math.round(g.vol).toLocaleString('ro-RO')}</div>${rows}</div>`;
-  }).join(''):'<div class="empty">Nimic de afișat cu filtrele curente.</div>';
-  $('alerts').innerHTML=S.alerts.length?S.alerts.map(a=>`<div class="al ${a.d>0?'u':''}"><b>${a.d>0?'▲':'▼'} ${esc(a.label)} ${a.d>0?'+':''}${a.d.toFixed(1)} pp</b>${esc(a.ev)}<br><small>${esc(tname(a.type))} · ${a.from.toFixed(1)}% → ${a.to.toFixed(1)}% · ${new Date(a.t).toLocaleTimeString('ro-RO')}</small></div>`).join(''):'<div class="empty">Nicio alertă încă. Pragul se aplică pe fereastra aleasă.</div>';
+    return `<div class="ev" data-ev="${g.ev.id}"><h3>${esc(g.ev.title)}</h3><div class="meta">${esc(dt)} · vol 24h $${Math.round(g.vol).toLocaleString('ro-RO')}</div>${rows}</div>`;
+  }).join(''):'<div class="empty">Nimic de afișat pentru sportul și tipurile alese.</div>';
+  $('alerts').innerHTML=S.alerts.length?S.alerts.map((a,i)=>`<div class="al ${a.d>0?'u':''}" data-a="${i}"><b>${a.d>0?'▲':'▼'} ${esc(a.label)} ${a.d>0?'+':''}${a.d.toFixed(1)} pp</b>${esc(a.ev)}<br><small>${esc(tname(a.type))} · ${a.from.toFixed(1)}% → ${a.to.toFixed(1)}% · ${new Date(a.t).toLocaleTimeString('ro-RO')}</small></div>`).join(''):'<div class="empty">Nicio alertă încă. Se aplică pe sportul ales.</div>';
   document.title=(S.alerts.length?`(${S.alerts.length}) `:'')+'Polymarket Sport Radar';
 }
 
+/* ---------- detaliu meci ---------- */
+function seriesFor(it){
+  const evItems=S.byEv.get(it.evId)||[];
+  let s=evItems.filter(x=>x.mid===it.mid);
+  if(it.type==='ml'){const mls=evItems.filter(x=>x.type==='ml');if(mls.length<=4) s=mls}
+  if(!s.includes(it)) s=[it,...s];
+  return s.slice(0,6);
+}
+function openDetail(evId,id){
+  const list=S.byEv.get(evId)||[];
+  const it=S.items.get(id)||list.find(x=>S.types.has(x.type))||list[0];
+  if(!it) return;
+  S.det={evId,id:it.id,range:S.det&&S.det.range||'6h'};
+  const t=it.ev.startTime||it.ev.endDate||it.ev.startDate;
+  $('sh-t').textContent=it.ev.title;
+  $('sh-m').textContent=(t?new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})+' · ':'')+`vol 24h $${Math.round(+it.ev.volume24hr||0).toLocaleString('ro-RO')}`;
+  $('sheet').hidden=false; document.body.style.overflow='hidden'; $('sheet').scrollTop=0;
+  renderRng(); renderDetRows(); loadChart();
+}
+function closeDetail(){S.det=null;$('sheet').hidden=true;document.body.style.overflow=''}
+function renderRng(){
+  $('rng').innerHTML=Object.entries(RANGES).map(([k,v])=>`<button class="chip ${S.det.range===k?'on':''}" data-r="${k}">${v.n}</button>`).join('');
+}
+function renderDetRows(){
+  if(!S.det) return;
+  const list=S.byEv.get(S.det.evId)||[],now=Date.now(),win=+$('win').value;
+  let h='';
+  for(const [k,n] of TYPES){
+    const rows=list.filter(x=>x.type===k).sort((a,b)=>b.p-a.p);
+    if(!rows.length) continue;
+    h+=`<h4>${n}</h4>`+rows.slice(0,25).map(it=>{
+      const d=delta(it.id,win,now),cls=d===null||Math.abs(d)<0.05?'fl':d>0?'up':'dn';
+      return `<div class="dr ${it.id===S.det.id?'sel':''}" data-id="${it.id}"><span>${esc(it.label)}</span><span class="p">${(it.p*100).toFixed(1)}%</span><span class="d ${cls}">${d===null?'–':(d>0?'+':'')+d.toFixed(1)+' pp'}</span></div>`;
+    }).join('');
+  }
+  $('drows').innerHTML=h||'<div class="empty">Nicio altă predicție.</div>';
+}
+async function loadChart(){
+  const d=S.det; if(!d) return;
+  const it=S.items.get(d.id); if(!it) return;
+  const my=++S.tok,ser=seriesFor(it),[iv,fid]=RANGES[d.range].c;
+  $('chart').innerHTML='<div class="empty">Se încarcă graficul…</div>';$('legend').innerHTML='';$('tip').textContent='';$('book').textContent='';
+  const data=await Promise.all(ser.map(async(x,i)=>{
+    try{const r=await jget(`${C}/prices-history?market=${x.id}&interval=${iv}&fidelity=${fid}`);
+      return {it:x,c:COL[i%COL.length],pts:(r.history||[]).map(q=>({t:q.t*1000,p:q.p}))}}
+    catch(e){return {it:x,c:COL[i%COL.length],pts:[]}}
+  }));
+  if(my!==S.tok||!S.det) return;
+  drawChart(data);
+  try{
+    const b=await jget(`${C}/book?token_id=${it.id}`);
+    const bid=Math.max(...(b.bids||[]).map(x=>+x.price)),ask=Math.min(...(b.asks||[]).map(x=>+x.price));
+    if(my===S.tok&&isFinite(bid)&&isFinite(ask)) $('book').textContent=`${it.label}: cerere ${(bid*100).toFixed(1)}% · ofertă ${(ask*100).toFixed(1)}% · spread ${((ask-bid)*100).toFixed(1)} pp${ask-bid>0.1?' (lichiditate slabă, prețul poate fi înșelător)':''}`;
+  }catch(e){}
+}
+let CH=null;
+function drawChart(data){
+  const all=data.flatMap(s=>s.pts);
+  $('legend').innerHTML=data.map(s=>{
+    const f=s.pts[0],l=s.pts[s.pts.length-1],ch=f&&l?(l.p-f.p)*100:null;
+    return `<span><i style="background:${s.c}"></i>${esc(s.it.label)} <b>${(s.it.p*100).toFixed(1)}%</b>${ch===null?'':` <span class="${ch>=0?'up':'dn'}">${ch>=0?'+':''}${ch.toFixed(1)} pp</span>`}</span>`;
+  }).join('');
+  if(!all.length){$('chart').innerHTML='<div class="empty">Fără istoric pentru acest interval.</div>';CH=null;return}
+  const Wd=640,H=270,L=40,R=10,T=10,B=24;
+  const t0=Math.min(...all.map(x=>x.t)),t1=Math.max(...all.map(x=>x.t));
+  let lo=Math.min(...all.map(x=>x.p)),hi=Math.max(...all.map(x=>x.p));
+  const pad=Math.max((hi-lo)*0.12,0.02);lo=Math.max(0,lo-pad);hi=Math.min(1,hi+pad);
+  const X=t=>L+(t-t0)/((t1-t0)||1)*(Wd-L-R),Y=p=>T+(1-(p-lo)/((hi-lo)||1))*(H-T-B);
+  const dec=(hi-lo)<0.1?1:0,short=['1h','6h','1d'].includes(S.det.range);
+  let g='';
+  for(let i=0;i<=4;i++){const p=lo+(hi-lo)*i/4,y=Y(p);g+=`<line x1="${L}" x2="${Wd-R}" y1="${y}" y2="${y}" stroke="#2a4237"/><text x="${L-5}" y="${y+4}" text-anchor="end" font-size="11" fill="#8ea89b">${(p*100).toFixed(dec)}%</text>`}
+  for(let i=0;i<=3;i++){const t=t0+(t1-t0)*i/3,d=new Date(t);
+    g+=`<text x="${X(t)}" y="${H-6}" text-anchor="${i===0?'start':i===3?'end':'middle'}" font-size="11" fill="#8ea89b">${short?d.toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('ro-RO',{day:'2-digit',month:'2-digit'})}</text>`}
+  const lines=data.map(s=>s.pts.length?`<polyline fill="none" stroke="${s.c}" stroke-width="2" stroke-linejoin="round" points="${s.pts.map(q=>X(q.t).toFixed(1)+','+Y(q.p).toFixed(1)).join(' ')}"/>`:'').join('');
+  $('chart').innerHTML=`<svg viewBox="0 0 ${Wd} ${H}" width="100%">${g}${lines}<line id="cx" y1="${T}" y2="${H-B}" stroke="#8ea89b" stroke-dasharray="3 3" x1="-9" x2="-9"/></svg>`;
+  CH={data,t0,t1,Wd,L,R,short};
+  $('tip').textContent='Atinge graficul pentru valori exacte.';
+}
+function tipAt(e){
+  if(!CH) return;
+  const svg=$('chart').querySelector('svg'),r=svg.getBoundingClientRect();
+  const fx=(e.clientX-r.left)/r.width*CH.Wd;
+  const t=CH.t0+Math.min(1,Math.max(0,(fx-CH.L)/(CH.Wd-CH.L-CH.R)))*(CH.t1-CH.t0);
+  const parts=[];let tt=t;
+  for(const s of CH.data){
+    if(!s.pts.length) continue;
+    const n=s.pts.reduce((a,b)=>Math.abs(b.t-t)<Math.abs(a.t-t)?b:a);
+    tt=n.t;parts.push(`<span style="color:${s.c}">${esc(s.it.label)} ${(n.p*100).toFixed(1)}%</span>`);
+  }
+  const x=CH.L+(tt-CH.t0)/((CH.t1-CH.t0)||1)*(CH.Wd-CH.L-CH.R);
+  const cx=$('cx');cx.setAttribute('x1',x);cx.setAttribute('x2',x);
+  $('tip').innerHTML=new Date(tt).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})+' · '+parts.join(' · ');
+}
+
+/* ---------- tick ---------- */
 async function tick(){
   clearTimeout(S.timer);
   try{
     $('st').textContent='Actualizez…';
-    await loadGamma(); renderChips(); renderSports();
-    await loadMidpoints();
+    await loadGamma(); renderSports(); renderChips();
     await seedHistory();
-    const now=Date.now(); record(now); detect(now); render();
-    $('st').textContent=`${sel().length} selecții urmărite · actualizat ${new Date().toLocaleTimeString('ro-RO')} · ${W()?'prin Worker':route===0?'conexiune directă':'prin proxy CORS'}`;
+    const now=Date.now(); record(now); detect(now); render(); renderDetRows();
+    $('st').textContent=`${cur().length} selecții în ${S.sport||'toate sporturile'} · actualizat ${new Date().toLocaleTimeString('ro-RO')} · ${W()?'prin Worker':route===0?'conexiune directă':'prin proxy CORS'}`;
   }catch(e){
-    $('st').textContent='Eroare: '+e.message+' — Polymarket blochează accesul direct din browser; completează câmpul URL Worker.';
+    $('st').textContent='Eroare: '+e.message+' — Polymarket blochează accesul direct din browser; folosește Worker-ul.';
   }
   S.timer=setTimeout(tick,(+$('ref').value||30)*1000);
 }
 
-/* ---------- setări salvate ---------- */
-const IDS=['thr','win','ref','sort','hide','wk'];
-function save(){try{const c={types:[...S.types]};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg',JSON.stringify(c))}catch(e){}}
-try{const c=JSON.parse(localStorage.getItem('cfg')||'{}');
+/* ---------- setări + evenimente ---------- */
+const IDS=['thr','win','ref','sort','hide','wk','minv'];
+function save(){try{const c={types:[...S.types],sport:S.sport};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg2',JSON.stringify(c))}catch(e){}}
+try{const c=JSON.parse(localStorage.getItem('cfg2')||'{}');
   if(c.types&&c.types.length) S.types=new Set(c.types);
+  if(c.sport) S.sport=c.sport;
   IDS.forEach(i=>{if(c[i]!==undefined){if($(i).type==='checkbox')$(i).checked=c[i];else $(i).value=c[i]}})}catch(e){}
 
+function pickSport(n){if(!n)return;S.sport=n;save();renderSports();renderChips();render();tick()}
+$('sports').addEventListener('click',e=>{const b=e.target.closest('.chip');if(b)pickSport(b.dataset.s)});
+$('sports').addEventListener('change',e=>{if(e.target.id==='more')pickSport(e.target.value)});
 $('chips').addEventListener('click',e=>{
   const b=e.target.closest('.chip'); if(!b) return;
   const k=b.dataset.k; S.types.has(k)?S.types.delete(k):S.types.add(k);
   if(!S.types.size) S.types.add('ml');
   save(); renderChips(); render(); tick();
 });
-['thr','win','hide','sort','sport','q'].forEach(id=>$(id).addEventListener('input',()=>{save();render()}));
+$('list').addEventListener('click',e=>{
+  const r=e.target.closest('.row'),ev=e.target.closest('.ev'); if(!ev) return;
+  openDetail(ev.dataset.ev,r?r.dataset.id:null);
+});
+$('alerts').addEventListener('click',e=>{const a=e.target.closest('.al');if(!a)return;const x=S.alerts[+a.dataset.a];if(x)openDetail(x.evId,x.id)});
+$('drows').addEventListener('click',e=>{const r=e.target.closest('.dr');if(!r||!S.det)return;S.det.id=r.dataset.id;renderDetRows();loadChart()});
+$('rng').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||!S.det)return;S.det.range=b.dataset.r;renderRng();loadChart()});
+$('x').addEventListener('click',closeDetail);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
+$('chart').addEventListener('pointermove',tipAt);
+$('chart').addEventListener('pointerdown',tipAt);
+['thr','win','hide','sort','q','minv'].forEach(id=>$(id).addEventListener('input',()=>{save();render();renderDetRows()}));
 $('ref').addEventListener('change',()=>{save();tick()});
 $('wk').addEventListener('change',()=>{save();tick()});
 try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
