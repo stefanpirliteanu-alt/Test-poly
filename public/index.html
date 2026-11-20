@@ -29,6 +29,7 @@ h2{font-size:15px;margin:6px 0 8px;color:var(--ac)}
 .ev{background:var(--s);border-radius:10px;padding:10px 12px;margin-bottom:10px;cursor:pointer}
 .ev h3{margin:0 0 2px;font-size:16px}
 .lead{font:14px/1.5 system-ui,sans-serif;margin:4px 0}
+details.dz{padding:0}.dz summary{cursor:pointer;color:var(--mu);font:13px system-ui,sans-serif;padding:8px 0}
 #sum a{color:var(--ac);font-weight:700;text-decoration:underline}
 .meta{font:12px system-ui,sans-serif;color:var(--mu);margin-bottom:6px}
 .row{display:grid;grid-template-columns:1fr 54px 78px 84px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #2a4237;font-family:system-ui,sans-serif;font-size:14px}
@@ -294,10 +295,11 @@ function normTrades(r){
   return a.map(t=>({cid:t.condition_id||t.conditionId,side:String(t.side||'').toUpperCase(),size:+t.size,price:+t.price,ts:tsMs(t.timestamp),outcome:t.outcome,hash:t.transaction_hash||t.transactionHash||''}));
 }
 async function fetchTrades(cids,limit){
-  let out=[];
+  let out=[];fetchTrades.trunc=false;
   for(let i=0;i<cids.length;i+=20){
     const r=await jget(`${D}/v2/trades?condition=${cids.slice(i,i+20).join(',')}&limit=${limit}`);
-    out=out.concat(normTrades(r));
+    const a=normTrades(r); if(a.length>=limit) fetchTrades.trunc=true;
+    out=out.concat(a);
   }
   return out;
 }
@@ -392,7 +394,7 @@ function openDetail(evId,id){
   S.det={evId,id:it.id,range:S.det&&S.det.range||'6h'};
   const t=it.ev.startTime||it.ev.endDate||it.ev.startDate;
   $('sh-t').textContent=it.ev.title;
-  $('sh-m').textContent=(t?new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})+' · ':'')+`vol 24h $${Math.round(+it.ev.volume24hr||0).toLocaleString('ro-RO')}`;
+  $('sh-m').textContent=(t?new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})+' · ':'')+`volum 24h pe tot evenimentul: $${Math.round(+it.ev.volume24hr||0).toLocaleString('ro-RO')}`;
   $('sheet').hidden=false; document.body.style.overflow='hidden'; $('sheet').scrollTop=0;
   renderRng(); loadDetData(evId); loadChart();
 }
@@ -412,7 +414,7 @@ async function loadDetData(evId){
 }
 async function detTrades(evId){
   const list=(S.byEv.get(evId)||[]).slice().sort((a,b)=>b.vol-a.vol);
-  const cids=[...new Set(list.map(x=>x.m.conditionId).filter(Boolean))].slice(0,20);
+  const cids=[...new Set(list.map(x=>x.m.conditionId).filter(Boolean))].slice(0,100);
   if(!cids.length) return;
   try{
     const r=await fetchTrades(cids,1000);
@@ -423,6 +425,9 @@ async function detTrades(evId){
       if(t.side==='BUY') a.buy+=c; else a.sell+=c;
       a.n++; a.max=Math.max(a.max,c); if(t.ts) since=Math.min(since,t.ts);
     }
+    const d24=Date.now()-864e5;let tot24=0,totAll=0;const act=new Set();
+    for(const t of r){const c=t.size*t.price;totAll+=c;if(t.ts>=d24)tot24+=c;act.add(t.cid)}
+    S.dd.tot24=tot24;S.dd.totAll=totAll;S.dd.act=act;S.dd.trunc=fetchTrades.trunc;S.dd.mk=cids.length;
     S.dd.agg=agg;S.dd.n=r.length;S.dd.since=isFinite(since)?since:0;S.dd.err='';
   }catch(e){if(S.dd&&S.dd.evId===evId) S.dd.err=e.message}
   renderDetRows();
@@ -458,10 +463,13 @@ function cardHtml(it,thr){
   if(dd.err) money=`<div class="mn">Pariurile nu s-au putut încărca (${esc(dd.err)}). Reîncerc la următoarea actualizare.</div>`;
   else if(!dd.agg) money='<div class="mn">Se încarcă pariurile…</div>';
   else{
-    const cid=it.m.conditionId,a=dd.agg[cid+'|'+it.o]||{buy:0,sell:0,n:0,max:0};
+    const cid=it.m.conditionId,mk=S.mk.get(cid),g=o=>dd.agg[cid+'|'+o]||{buy:0,sell:0,n:0,max:0};
+    const row=(lab,a)=>{const net=a.buy-a.sell;return `<div style="margin-top:4px">${lab?`<b>${lab}</b> · `:''}cumpărat <b class="up">${usd(a.buy)}</b> · retras <b class="dn">${usd(a.sell)}</b> · net <b>${net>=0?'+':'−'}${usd(Math.abs(net))}</b><br><small>${a.n} tranzacții · cea mai mare ${usd(a.max)}</small></div>`};
+    const a=g(it.o);
     const tot=Object.keys(dd.agg).filter(k=>k.startsWith(cid+'|')).reduce((s,k)=>s+dd.agg[k].buy,0);
     const share=tot>0?a.buy/tot*100:0;
-    money=`<div class="mn"><b>${usd(a.buy)}</b> pariați pe acest rezultat${tot>0?` (${share.toFixed(0)}% din banii cumpărați pe această piață)`:''}<div class="mbar"><i style="width:${share.toFixed(0)}%"></i></div><small>${a.n} tranzacții · cel mai mare pariu ${usd(a.max)}${a.sell>0?` · vândut ${usd(a.sell)}`:''}</small></div>`;
+    const lines=(mk&&mk.yn)?row('DA',g('Yes'))+row('NU',g('No')):row('',a);
+    money=`<div class="mn">${lines}<div class="mbar"><i style="width:${share.toFixed(0)}%"></i></div><small>${share.toFixed(0)}% din banii cumpărați pe această piață merg pe acest rezultat</small></div>`;
   }
   return `<div class="card ${it.id===S.det.id?'sel':''}" data-id="${it.id}"><div class="ch"><span class="cl">${esc(it.label)}</span><span class="cp">${(it.p*100).toFixed(0)}%<small>cota ${odds(it.p)}</small></span></div>${badge(mv,thr)}${mv&&Math.abs(mv.m30)>=0.5?`<div class="mv">Acum 30 min: <b>${(mv.r30*100).toFixed(0)}%</b> (cota ${odds(mv.r30)}) → acum: <b>${(it.p*100).toFixed(0)}%</b> (cota ${odds(it.p)})</div>`:''}${mv?`<div class="mv">Variație: 30 min ${fmt(mv.m30)} · 1 h ${fmt(mv.h1)} · 6 h ${fmt(mv.h6)} pp</div>`:''}${money}</div>`;
 }
@@ -469,6 +477,7 @@ function renderSum(list,thr){
   const dd=S.dd,ev=list[0]&&list[0].ev; if(!ev) return;
   const p=[isLive(ev)?'<b style="color:var(--dn)">Meciul este LIVE</b>: cotele se mișcă în funcție de ce se întâmplă pe teren.':'Meciul nu a început: mișcările de acum vin din bani și știri, nu din joc.'];
   if(dd.agg){
+    p.push(`Tranzacționat în ultimele 24h pe tot evenimentul: <b>${usd(dd.tot24)}</b> (cumpărări + vânzări, ${dd.mk} piețe). Polymarket arată ${usd(+ev.volume24hr||0)}.${dd.trunc?' Lista e incompletă: Polymarket dă maximum 1.000 de tranzacții per grup de piețe.':''} <small>Cifra de pe fiecare card e doar partea cumpărată pe acel rezultat, deci sumele cardurilor nu dau totalul.</small>`);
     let best=null;
     for(const it of list){const a=dd.agg[it.m.conditionId+'|'+it.o];if(a&&(!best||a.buy>best.a.buy)) best={it,a}}
     if(best&&best.a.buy>0) p.push(`Cei mai mulți bani s-au pus pe <a href="#" data-go="${best.it.id}">${esc(best.it.label)}</a>: ${usd(best.a.buy)} (din ultimele ${dd.n} tranzacții${dd.since?', de la '+new Date(dd.since).toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'}):''}).`);
@@ -484,11 +493,18 @@ function renderDetRows(){
   if(!S.det||!S.dd) return;
   const list=S.byEv.get(S.det.evId)||[],thr=+$('thr').value||5;
   let h='';
-  for(const [k,n] of TYPES){
-    const rows=list.filter(x=>x.type===k).sort((a,b)=>b.p-a.p);
-    if(!rows.length) continue;
-    h+=`<h4>${n}</h4><div class="meta">${EXPL[k]}</div>`+rows.slice(0,20).map(it=>cardHtml(it,thr)).join('');
+  const dd=S.dd;let hid=0;
+  const tr=it=>{const a=dd.agg&&dd.agg[it.m.conditionId+'|'+it.o];return a?a.buy+a.sell:0};
+  const act=it=>{const k=it.m.conditionId,a=dd.agg[k+'|'+it.o];if(a&&a.n>0) return true;const mk=S.mk.get(k);if(mk&&mk.yn){const b=dd.agg[k+'|No'];return !!(b&&b.n>0)}return false};
+  if(!dd.agg) h='<div class="empty">Se încarcă pariurile…</div>';
+  else for(const [k,n] of TYPES){
+    const all=list.filter(x=>x.type===k);
+    const on=all.filter(act).sort((a,b)=>tr(b)-tr(a)||b.p-a.p);
+    hid+=all.length-on.length;
+    if(!on.length) continue;
+    h+=`<h4>${n}</h4><div class="meta">${EXPL[k]}</div>`+on.slice(0,30).map(it=>cardHtml(it,thr)).join('');
   }
+  if(dd.agg) h+=h?`<div class="meta" style="margin-top:12px">${hid} predicții fără nicio cumpărare sau retragere sunt ascunse.</div>`:'<div class="empty">Nu am găsit nicio cumpărare sau retragere în tranzacțiile recente ale acestui meci.</div>';
   $('drows').innerHTML=h||'<div class="empty">Nicio altă predicție.</div>';
   renderSum(list,thr);
   const tl=S.trades.filter(x=>x.evId===S.det.evId).slice(0,12);
@@ -612,6 +628,7 @@ $('sum').addEventListener('click',e=>{
   S.det.id=a.dataset.go; renderDetRows(); loadChart();
   const c=document.querySelector('#drows .card.sel'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'});
 });
+$('drows').addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.k){S.dz=S.dz||{};S.dz[d.dataset.k]=d.open}},true);
 $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
 $('chart').addEventListener('pointermove',tipAt);
