@@ -44,7 +44,8 @@ svg{display:block}
 /* detaliu */
 #sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:20}
 #sheet[hidden]{display:none}
-#bt,#sm{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#bt[hidden],#sm[hidden]{display:none}
+#bt,#sm,#fl{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#wl{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:30}#bt[hidden],#sm[hidden],#fl[hidden],#wl[hidden]{display:none}
+a.wlink{color:var(--ac);text-decoration:underline}.wlk{cursor:pointer}.tx{padding:7px 0;border-top:1px solid #2a4237;font:13px/1.45 system-ui,sans-serif}
 .smk{cursor:pointer}.smk .wr{border-top:1px solid #2a4237}
 .bx{background:var(--s);border-radius:10px;padding:10px 12px;margin:10px 0}.bx h4{margin:0 0 6px}
 #cmpbox{margin:8px 0}#cmpout{margin-top:8px}
@@ -83,7 +84,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 <header>
   <h1>Polymarket Sport Radar</h1>
   <div id="st">Se încarcă…</div>
-  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
+  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="flbtn" style="margin-top:8px">★ Urmărite</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
 </header>
 <div class="sc" id="sports"></div>
 <div class="bar" id="chips"></div>
@@ -130,6 +131,24 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
   </div>
 </div>
 
+<div id="wl" hidden>
+  <div class="sh">
+    <div class="top"><button id="wlx" aria-label="Închide">✕</button><div><h2 id="wlt"></h2><div class="meta" id="wla" style="word-break:break-all"></div></div></div>
+    <div class="bar" style="padding:4px 0"><button class="chip on" id="wlfb">★ Urmărește</button><a class="chip" id="wlext" target="_blank" rel="noopener" style="text-decoration:none">Deschide pe Polymarket ↗</a><label><input type="checkbox" id="wlf"> doar piețele din pagină</label></div>
+    <div id="wlp"></div>
+    <h4>Poziții deschise</h4><div id="wlpos"></div>
+    <h4>Tranzacții recente</h4><div id="wltr"></div>
+  </div>
+</div>
+<div id="fl" hidden>
+  <div class="sh">
+    <div class="top"><button id="flx" aria-label="Închide">✕</button><div><h2>Portofele urmărite</h2><div class="meta">Ce au făcut recent portofelele pe care le urmărești. Se actualizează când apeși „Reîncarcă”.</div></div></div>
+    <div class="bar" style="padding:6px 0"><button class="chip on" id="flrun">Reîncarcă</button></div>
+    <div class="meta" id="flst"></div>
+    <div id="fllist"></div>
+    <div id="flout" style="font:14px/1.5 system-ui,sans-serif"></div>
+  </div>
+</div>
 <div id="sm" hidden>
   <div class="sh">
     <div class="top"><button id="smx" aria-label="Închide">✕</button><div><h2>Bani deștepți</h2><div class="meta">Unde au poziții deschise portofelele din topul Polymarket la Sports, în piețele pe care le vezi în pagină.</div></div></div>
@@ -347,7 +366,7 @@ async function loadTrades(){
   }
   S.trades.sort((a,b)=>b.t-a.t); S.trades=S.trades.slice(0,200);
 }
-const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small>${x.w?`<br><small>${esc(x.who||short(x.w))}</small><br>${profHtml(x.w)}`:''}</div>`;
+const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small>${x.w?`<br><small><a href="#" class="wlink" data-wa="${x.w}" data-wn="${esc(x.who||'')}">${esc(x.who||short(x.w))}</a></small><br>${profHtml(x.w)}`:''}</div>`;
 function renderWhales(){
   const minv=+$('bigv').value||2000;
   const l=S.trades.filter(x=>x.cash>=minv&&(!S.sports.size||x.tags.includes(S.sport))).slice(0,30);
@@ -565,7 +584,7 @@ function holdHtml(it){
   const tot=all.reduce((s,x)=>s+(+x.amount||0),0);
   return '<div class="who"><b>Cei mai mari deținători acum</b>'+hs.map(x=>{
     const sh=tot>0?(+x.amount/tot*100).toFixed(0):'0',tp=x.total_pnl;
-    return `<div class="wr"><span>${esc(x.name||x.pseudonym||short(x.proxy_wallet))}</span> · ${Math.round(+x.amount).toLocaleString('ro-RO')} acțiuni (${sh}% din primii ${all.length})${x.avg_price!=null?` · a intrat la ${(x.avg_price*100).toFixed(0)}%`:''}${x.current_value!=null?` · valoare acum ${usd(x.current_value)}`:''}${tp!=null?` · profit pe piața asta <b class="${tp>=0?'up':'dn'}">${tp>=0?'+':'−'}${usd(Math.abs(tp))}</b>`:''}<br>${profHtml(x.proxy_wallet)}</div>`;
+    return `<div class="wr"><span><a href="#" class="wlink" data-wa="${x.proxy_wallet}" data-wn="${esc(x.name||x.pseudonym||'')}">${esc(x.name||x.pseudonym||short(x.proxy_wallet))}</a></span> · ${Math.round(+x.amount).toLocaleString('ro-RO')} acțiuni (${sh}% din primii ${all.length})${x.avg_price!=null?` · a intrat la ${(x.avg_price*100).toFixed(0)}%`:''}${x.current_value!=null?` · valoare acum ${usd(x.current_value)}`:''}${tp!=null?` · profit pe piața asta <b class="${tp>=0?'up':'dn'}">${tp>=0?'+':'−'}${usd(Math.abs(tp))}</b>`:''}<br>${profHtml(x.proxy_wallet)}</div>`;
   }).join('')+'</div>';
 }
 function whoHtml(it){
@@ -575,7 +594,7 @@ function whoHtml(it){
     const a=dd&&dd.agg&&dd.agg[cid+'|'+o]; if(!a||!a.w) continue;
     const top=Object.entries(a.w).filter(e=>e[1].buy>0).sort((x,y)=>y[1].buy-x[1].buy).slice(0,5);
     if(!top.length) continue;
-    h+=`<div class="who"><b>Cei mai mari cumpărători${yn?' pe '+(o==='Yes'?'DA':'NU'):''} (din tranzacțiile recente)</b>`+top.map(([addr,v])=>`<div class="wr"><span>${esc(v.name||short(addr))}</span> · cumpărat <b>${usd(v.buy)}</b>${v.sell>0?` · retras ${usd(v.sell)}`:''} (${v.n} tranz.)<br>${addr!=='?'?profHtml(addr):''}</div>`).join('')+'</div>';
+    h+=`<div class="who"><b>Cei mai mari cumpărători${yn?' pe '+(o==='Yes'?'DA':'NU'):''} (din tranzacțiile recente)</b>`+top.map(([addr,v])=>`<div class="wr"><span>${addr!=='?'?`<a href="#" class="wlink" data-wa="${addr}" data-wn="${esc(v.name||'')}">${esc(v.name||short(addr))}</a>`:esc(v.name||short(addr))}</span> · cumpărat <b>${usd(v.buy)}</b>${v.sell>0?` · retras ${usd(v.sell)}`:''} (${v.n} tranz.)<br>${addr!=='?'?profHtml(addr):''}</div>`).join('')+'</div>';
   }
   return h+holdHtml(it);
 }
@@ -871,7 +890,7 @@ async function runSmart(){
           any=true;
           const key=p.condition_id+'|'+p.token_id;
           const a=agg.get(key)||{cid:p.condition_id,tok:p.token_id,outcome:p.outcome,title:p.title,mk,ws:[],value:0,sz:0,wavg:0,cur:p.current_price,newN:0};
-          a.ws.push({n:w.user_name||short(w.user_id),v:p.current_value,avg:p.avg_price,pnl:p.unrealized_pnl});
+          a.ws.push({a:w.user_id,n:w.user_name||short(w.user_id),v:p.current_value,avg:p.avg_price,pnl:p.unrealized_pnl});
           a.value+=p.current_value;a.sz+=p.current_size;a.wavg+=p.avg_price*p.current_size;a.cur=p.current_price;
           if(p.first_entry_at&&now-p.first_entry_at<6*3600) a.newN++;
           agg.set(key,a);
@@ -889,7 +908,7 @@ async function runSmart(){
     out.innerHTML=list.map(m=>{
       const ev=m.mk.ev;
       const rowsH=m.outs.sort((x,y)=>y.value-x.value).map(a=>{
-        const avg=a.sz>0?a.wavg/a.sz:0,top=a.ws.sort((x,y)=>y.v-x.v).slice(0,3).map(x=>`${esc(x.n)} ${usd(x.v)}`).join(', ');
+        const avg=a.sz>0?a.wavg/a.sz:0,top=a.ws.sort((x,y)=>y.v-x.v).slice(0,3).map(x=>`<a href="#" class="wlink" data-wa="${x.a}" data-wn="${esc(x.n)}">${esc(x.n)}</a> ${usd(x.v)}`).join(', ');
         return `<div class="wr"><b>${esc(posLabel(a))}</b><br><b>${a.ws.length}</b> ${a.ws.length===1?'portofel':'portofele'} · ${usd(a.value)} · intrare medie <b>${(avg*100).toFixed(0)}%</b> → acum <b>${(a.cur*100).toFixed(0)}%</b>${a.newN?` <span class="bd bu">${a.newN} intrări în ultimele 6h</span>`:''}<br><small>${top}</small></div>`;
       }).join('');
       const t=ev.startTime||ev.endDate||'';
@@ -902,6 +921,110 @@ $('smbtn').addEventListener('click',()=>{$('sm').hidden=false;document.body.styl
 $('smx').addEventListener('click',()=>{$('sm').hidden=true;document.body.style.overflow=S.det?'hidden':''});
 $('smrun').addEventListener('click',runSmart);
 $('smout').addEventListener('click',e=>{const c=e.target.closest('.smk');if(!c)return;$('sm').hidden=true;openDetail(c.dataset.ev,c.dataset.tk)});
+
+
+/* ---------- pagina unui portofel + portofele urmărite ---------- */
+S.fol=(()=>{try{return JSON.parse(localStorage.getItem('fol')||'[]')}catch(e){return[]}})();S.wtok=0;
+const folSave=()=>{try{localStorage.setItem('fol',JSON.stringify(S.fol))}catch(e){}$('flbtn').textContent=`★ Urmărite (${S.fol.length})`};
+const isFol=a=>S.fol.some(x=>x.a.toLowerCase()===String(a).toLowerCase());
+const tmf=ts=>new Date(ts*1000).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const anyOverlay=()=>{document.body.style.overflow=(!$('sheet').hidden||!$('bt').hidden||!$('sm').hidden||!$('fl').hidden||!$('wl').hidden)?'hidden':''};
+function wlBtn(){const f=S.wl&&isFol(S.wl.a);$('wlfb').textContent=f?'★ Urmărit (apasă ca să renunți)':'★ Urmărește';$('wlfb').className='chip'+(f?' on':'')}
+async function openWallet(addr,name){
+  if(!addr||addr==='?') return;
+  S.wl={a:addr,n:name||'',only:$('wlf').checked};
+  $('wl').hidden=false;document.body.style.overflow='hidden';$('wl').scrollTop=0;
+  $('wlt').textContent=name||short(addr);$('wla').textContent=addr;$('wlext').href='https://polymarket.com/profile/'+addr;wlBtn();
+  $('wlp').innerHTML='<div class="empty">Se încarcă profilul…</div>';$('wlpos').innerHTML='';$('wltr').innerHTML='';
+  const my=++S.wtok,er=e=>({err:String(e.message||e)});
+  const [pf,rk,pos,tr]=await Promise.all([
+    jgetRetry(`${D}/v2/user-stats?user=${addr}`).catch(er),
+    jgetRetry(`${D}/v2/leaderboard?user=${addr}&time_period=month&category=sports`).catch(()=>null),
+    jgetRetry(`${D}/v2/positions?user=${addr}&status=OPEN&sort_by=CURRENT_VALUE&filter_type=CASH&filter_amount=20&limit=60`).catch(er),
+    jgetRetry(`${D}/v2/trades?user=${addr}&limit=100`).catch(er)
+  ]);
+  if(my!==S.wtok||!S.wl) return;
+  Object.assign(S.wl,{pf,rk,pos,tr});renderWallet();
+}
+function renderWallet(){
+  const w=S.wl; if(!w) return;
+  const pf=w.pf&&w.pf.data,rk=w.rk&&w.rk.data,only=$('wlf').checked,mkEv=c=>S.mk.get(c);
+  if(rk&&rk.user_name&&!w.n){w.n=rk.user_name;$('wlt').textContent=w.n}
+  let h='';
+  if(w.pf&&w.pf.err) h=`<div class="empty">Profil indisponibil (${esc(w.pf.err)})</div>`;
+  else if(!pf) h='<div class="empty">Portofel necunoscut (probabil cont nou).</div>';
+  else{
+    const at=pf.all_time_pnl||{},pnl=at.position_pnl!=null?at.position_pnl:at.realized_pnl;
+    h=`<div class="bx"><div>${pf.trades} piețe tranzacționate${pf.join_date?` · cont din ${new Date(pf.join_date*1000).getFullYear()}`:''}</div>
+    <div>Profit total: ${pnl!=null?`<b class="${pnl>=0?'up':'dn'}">${pnl>=0?'+':'−'}${usd(Math.abs(pnl))}</b>`:'–'}${at.volume_usdc!=null?` · volum ${usd(at.volume_usdc)}`:''}${pf.biggest_win>0?` · cel mai mare câștig ${usd(pf.biggest_win)}`:''}</div>
+    ${rk?`<div>Sports, ultimele 30 de zile: profit <b class="${rk.pnl>=0?'up':'dn'}">${rk.pnl>=0?'+':'−'}${usd(Math.abs(rk.pnl))}</b>${rk.rank_pnl?` · loc <b>#${rk.rank_pnl}</b>`:' · în afara clasamentului'}</div>`:''}</div>`;
+  }
+  $('wlp').innerHTML=h;
+  // poziții
+  if(w.pos&&w.pos.err) $('wlpos').innerHTML=`<div class="empty">Indisponibile (${esc(w.pos.err)})</div>`;
+  else{
+    const P=((w.pos&&w.pos.data)||[]).filter(p=>!only||mkEv(p.condition_id)).slice(0,25);
+    $('wlpos').innerHTML=P.length?P.map(p=>{
+      const mk=mkEv(p.condition_id),up=p.unrealized_pnl;
+      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${p.token_id}"`:''}><b>${esc(p.title||'(fără titlu)')}</b> · ${esc(p.outcome)}${mk?' · <small>în pagină, apasă pentru detalii</small>':''}<br>${usd(p.current_value)} · a intrat la <b>${(p.avg_price*100).toFixed(0)}%</b> → acum <b>${(p.current_price*100).toFixed(0)}%</b>${up!=null?` · <b class="${up>=0?'up':'dn'}">${up>=0?'+':'−'}${usd(Math.abs(up))}</b> nerealizat`:''}${p.first_entry_at?` · intrat ${tmf(p.first_entry_at)}`:''}</div>`;
+    }).join(''):'<div class="empty">Nicio poziție deschisă peste 20 $'+(only?' în piețele din pagină':'')+'.</div>';
+  }
+  // tranzacții
+  if(w.tr&&w.tr.err) $('wltr').innerHTML=`<div class="empty">Indisponibile (${esc(w.tr.err)})</div>`;
+  else{
+    const all=((w.tr&&w.tr.data)||[]),T=all.filter(t=>!only||mkEv(t.condition_id)).slice(0,40);
+    const d24=Date.now()/1000-86400;let b=0,sl=0;
+    for(const t of all){if(t.timestamp<d24) continue;const c=t.size*t.price;if(t.side==='BUY')b+=c;else sl+=c}
+    $('wltr').innerHTML=(all.length?`<div class="meta">Ultimele 24h (din cele ${all.length} tranzacții aduse): cumpărat ${usd(b)} · vândut ${usd(sl)}</div>`:'')+(T.length?T.map(t=>{
+      const mk=mkEv(t.condition_id),c=t.size*t.price;
+      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${t.token_id}"`:''}><b class="${t.side==='BUY'?'up':'dn'}">${t.side==='BUY'?'▲ cumpărat':'▼ vândut'} ${usd(c)}</b> · ${esc(t.outcome)} la ${(t.price*100).toFixed(0)}% · ${tmf(t.timestamp)}<br>${esc(t.title||'')}${mk?' <small>(în pagină)</small>':''}</div>`;
+    }).join(''):'<div class="empty">Nicio tranzacție'+(only?' în piețele din pagină':'')+'.</div>');
+  }
+}
+function closeWallet(){S.wl=null;S.wtok++;$('wl').hidden=true;anyOverlay()}
+document.addEventListener('click',e=>{
+  const a=e.target.closest('[data-wa]'); if(!a) return;
+  e.preventDefault();e.stopPropagation();openWallet(a.dataset.wa,a.dataset.wn||'');
+},true);
+$('wlx').addEventListener('click',closeWallet);
+$('wlf').addEventListener('change',renderWallet);
+$('wlfb').addEventListener('click',()=>{
+  const w=S.wl; if(!w) return;
+  if(isFol(w.a)) S.fol=S.fol.filter(x=>x.a.toLowerCase()!==w.a.toLowerCase()); else S.fol.push({a:w.a,n:w.n||''});
+  folSave();wlBtn();
+});
+$('wl').addEventListener('click',e=>{
+  const c=e.target.closest('.wlk'); if(!c) return;
+  closeWallet();$('fl').hidden=true;$('sm').hidden=true;anyOverlay();openDetail(c.dataset.ev,c.dataset.tk);
+});
+async function runFeed(){
+  const st=$('flst'),out=$('flout'),L=$('fllist');
+  L.innerHTML=S.fol.length?'<div class="bx"><h4>Urmărite ('+S.fol.length+')</h4>'+S.fol.map(f=>`<div class="tx"><a href="#" class="wlink" data-wa="${f.a}" data-wn="${esc(f.n)}">${esc(f.n||short(f.a))}</a> <button class="chip" data-un="${f.a}" style="margin-left:6px">Renunță</button></div>`).join('')+'</div>':'';
+  out.innerHTML='';
+  if(!S.fol.length){st.textContent='';out.innerHTML='<div class="empty">Nu urmărești niciun portofel. Apasă pe numele unui portofel oriunde în pagină și alege „★ Urmărește”.</div>';return}
+  $('flrun').disabled=true;
+  try{
+    const all=[];let done=0;
+    await pool(S.fol,4,async f=>{
+      try{const r=await jgetRetry(`${D}/v2/trades?user=${f.a}&limit=20`);for(const t of (r&&r.data)||[]) all.push({t,f})}catch(e){}
+      st.textContent=`${++done}/${S.fol.length}…`;
+    });
+    all.sort((x,y)=>y.t.timestamp-x.t.timestamp);
+    let seen=0;try{seen=+localStorage.getItem('fseen')||0}catch(e){}
+    out.innerHTML=all.length?all.slice(0,50).map(({t,f})=>{
+      const mk=S.mk.get(t.condition_id),c=t.size*t.price,nw=t.timestamp>seen;
+      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${t.token_id}"`:''}><a href="#" class="wlink" data-wa="${f.a}" data-wn="${esc(f.n)}">${esc(f.n||short(f.a))}</a> · <b class="${t.side==='BUY'?'up':'dn'}">${t.side==='BUY'?'▲ cumpărat':'▼ vândut'} ${usd(c)}</b> · ${esc(t.outcome)} la ${(t.price*100).toFixed(0)}%${nw?' <span class="bd bu">NOU</span>':''}<br><small>${tmf(t.timestamp)} · ${esc(t.title||'')}${mk?' · în pagină':''}</small></div>`;
+    }).join(''):'<div class="empty">Nicio tranzacție recentă la portofelele urmărite.</div>';
+    st.textContent=`Actualizat ${new Date().toLocaleTimeString('ro-RO')}`;
+    try{localStorage.setItem('fseen',String(Math.floor(Date.now()/1000)))}catch(e){}
+  }finally{$('flrun').disabled=false}
+}
+$('flbtn').addEventListener('click',()=>{$('fl').hidden=false;document.body.style.overflow='hidden';runFeed()});
+$('flx').addEventListener('click',()=>{$('fl').hidden=true;anyOverlay()});
+$('flrun').addEventListener('click',runFeed);
+$('fllist').addEventListener('click',e=>{const b=e.target.closest('[data-un]');if(!b)return;S.fol=S.fol.filter(x=>x.a.toLowerCase()!==b.dataset.un.toLowerCase());folSave();runFeed()});
+$('flout').addEventListener('click',e=>{const c=e.target.closest('.wlk');if(!c)return;$('fl').hidden=true;anyOverlay();openDetail(c.dataset.ev,c.dataset.tk)});
+folSave();
 
 $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
