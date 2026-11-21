@@ -69,6 +69,10 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 .mbar{height:6px;background:#ffffff14;border-radius:3px;margin:5px 0;overflow:hidden}.mbar i{display:block;height:100%;background:var(--ac)}
 #help{background:var(--s);border-radius:10px;margin:8px 0;padding:8px 12px;font:13px/1.55 system-ui,sans-serif}#help summary{cursor:pointer;color:var(--ac);font-weight:600}#help p{margin:8px 0}
 #sum{background:var(--s);border-radius:10px;padding:2px 12px;margin:8px 0;font:14px/1.45 system-ui,sans-serif}#sum p{margin:8px 0}
+.wbtn{margin-top:8px;font:12px system-ui,sans-serif;background:var(--s2);color:var(--ac);border:1px solid #2f4a3e;border-radius:999px;padding:6px 12px;cursor:pointer}
+.who{margin-top:8px;padding:8px 10px;background:#00000026;border-radius:8px;font:13px/1.45 system-ui,sans-serif;cursor:default}
+.wr{margin:6px 0 0;padding-top:6px;border-top:1px solid #2a4237}
+.who small,.al small{color:var(--mu)}
 </style>
 </head>
 <body>
@@ -292,7 +296,7 @@ function detect(now){
 const tsMs=v=>typeof v==='number'?(v>1e12?v:v*1000):(Date.parse(v)||0);
 function normTrades(r){
   const a=Array.isArray(r)?r:(r&&Array.isArray(r.data)?r.data:[]);
-  return a.map(t=>({cid:t.condition_id||t.conditionId,side:String(t.side||'').toUpperCase(),size:+t.size,price:+t.price,ts:tsMs(t.timestamp),outcome:t.outcome,hash:t.transaction_hash||t.transactionHash||''}));
+  return a.map(t=>({cid:t.condition_id||t.conditionId,side:String(t.side||'').toUpperCase(),size:+t.size,price:+t.price,ts:tsMs(t.timestamp),outcome:t.outcome,hash:t.transaction_hash||t.transactionHash||'',w:t.proxy_wallet||t.proxyWallet||'',who:t.name||t.pseudonym||'',tok:t.token_id||t.asset||''}));
 }
 async function fetchTrades(cids,limit){
   let out=[];fetchTrades.trunc=false;
@@ -314,13 +318,13 @@ async function loadTrades(){
     const cash=t.size*t.price; if(!(cash>=minv)) continue;
     const key=t.hash+'|'+t.outcome+'|'+t.size; if(S.seenTr.has(key)) continue; S.seenTr.add(key);
     const tr={t:t.ts,evId:mk.ev.id,ev:mk.ev.title,tags:evSports(mk.ev),type:mk.type,side:t.side,
-      label:mk.yn?`${t.outcome} · ${mk.line}`:t.outcome,cash,price:t.price,live:isLive(mk.ev)};
+      label:mk.yn?`${t.outcome} · ${mk.line}`:t.outcome,cash,price:t.price,live:isLive(mk.ev),w:t.w,who:t.who};
     S.trades.push(tr);
     if(!first){try{new Notification(`${t.side==='BUY'?'▲':'▼'} $${Math.round(cash)} · ${tr.label}`,{body:tr.ev})}catch(e){}}
   }
   S.trades.sort((a,b)=>b.t-a.t); S.trades=S.trades.slice(0,200);
 }
-const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small></div>`;
+const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small>${x.w?`<br><small>${esc(x.who||short(x.w))}</small><br>${profHtml(x.w)}`:''}</div>`;
 function renderWhales(){
   const minv=+$('bigv').value||2000;
   const l=S.trades.filter(x=>x.cash>=minv&&(!S.sports.size||x.tags.includes(S.sport))).slice(0,30);
@@ -422,6 +426,8 @@ async function detTrades(evId){
     const agg={};let since=Infinity;
     for(const t of r){
       const k=t.cid+'|'+t.outcome,a=agg[k]||(agg[k]={buy:0,sell:0,n:0,max:0}),c=t.size*t.price;
+      const wm=a.w||(a.w={}),wk=t.w||'?',wv=wm[wk]||(wm[wk]={buy:0,sell:0,n:0,name:t.who});
+      if(t.side==='BUY') wv.buy+=c; else wv.sell+=c; wv.n++;
       if(t.side==='BUY') a.buy+=c; else a.sell+=c;
       a.n++; a.max=Math.max(a.max,c); if(t.ts) since=Math.min(since,t.ts);
     }
@@ -471,7 +477,7 @@ function cardHtml(it,thr){
     const lines=(mk&&mk.yn)?row('DA',g('Yes'))+row('NU',g('No')):row('',a);
     money=`<div class="mn">${lines}<div class="mbar"><i style="width:${share.toFixed(0)}%"></i></div><small>${share.toFixed(0)}% din banii cumpărați pe această piață merg pe acest rezultat</small></div>`;
   }
-  return `<div class="card ${it.id===S.det.id?'sel':''}" data-id="${it.id}"><div class="ch"><span class="cl">${esc(it.label)}</span><span class="cp">${(it.p*100).toFixed(0)}%<small>cota ${odds(it.p)}</small></span></div>${badge(mv,thr)}${mv&&Math.abs(mv.m30)>=0.5?`<div class="mv">Acum 30 min: <b>${(mv.r30*100).toFixed(0)}%</b> (cota ${odds(mv.r30)}) → acum: <b>${(it.p*100).toFixed(0)}%</b> (cota ${odds(it.p)})</div>`:''}${mv?`<div class="mv">Variație: 30 min ${fmt(mv.m30)} · 1 h ${fmt(mv.h1)} · 6 h ${fmt(mv.h6)} pp</div>`:''}${money}</div>`;
+  return `<div class="card ${it.id===S.det.id?'sel':''}" data-id="${it.id}"><div class="ch"><span class="cl">${esc(it.label)}</span><span class="cp">${(it.p*100).toFixed(0)}%<small>cota ${odds(it.p)}</small></span></div>${badge(mv,thr)}${mv&&Math.abs(mv.m30)>=0.5?`<div class="mv">Acum 30 min: <b>${(mv.r30*100).toFixed(0)}%</b> (cota ${odds(mv.r30)}) → acum: <b>${(it.p*100).toFixed(0)}%</b> (cota ${odds(it.p)})</div>`:''}${mv?`<div class="mv">Variație: 30 min ${fmt(mv.m30)} · 1 h ${fmt(mv.h1)} · 6 h ${fmt(mv.h6)} pp</div>`:''}${money}${whoBlock(it)}</div>`;
 }
 function renderSum(list,thr){
   const dd=S.dd,ev=list[0]&&list[0].ev; if(!ev) return;
@@ -489,6 +495,72 @@ function renderSum(list,thr){
   else if(mv) p.push('Nicio mișcare bruscă în ultimele 30 min.');
   $('sum').innerHTML=p.map(x=>`<p>${x}</p>`).join('');
 }
+/* ---------- cine e în spatele banilor: profil portofel + deținători ---------- */
+S.prof=new Map();S.hold=new Map();S.open=new Set();
+const short=a=>a?String(a).slice(0,6)+'…'+String(a).slice(-4):'?';
+const PQ=[];let PN=0,SR=0;
+function softRender(){clearTimeout(SR);SR=setTimeout(()=>{if(S.det)renderDetRows();renderWhales()},250)}
+function wantProf(addr){
+  const k=addr.toLowerCase(); if(S.prof.has(k)) return;
+  S.prof.set(k,{st:'load'}); PQ.push(addr); pumpProf();
+}
+function pumpProf(){
+  while(PN<4&&PQ.length){
+    const a=PQ.shift(); PN++;
+    jget(`${D}/v2/user-stats?user=${a}`)
+      .then(r=>S.prof.set(a.toLowerCase(),{st:'ok',d:(r&&r.data)||null}))
+      .catch(e=>S.prof.set(a.toLowerCase(),{st:'err',e:e.message}))
+      .finally(()=>{PN--;pumpProf();softRender()});
+  }
+}
+function profHtml(addr){
+  if(!addr) return '';
+  wantProf(addr);
+  const p=S.prof.get(addr.toLowerCase());
+  if(!p||p.st==='load') return '<small>se încarcă profilul…</small>';
+  if(p.st==='err') return '<small>profil indisponibil</small>';
+  const d=p.d; if(!d) return '<small>portofel necunoscut (probabil cont nou)</small>';
+  const at=d.all_time_pnl||null,pnl=at?(at.position_pnl!=null?at.position_pnl:at.realized_pnl):null,vol=at?at.volume_usdc:null;
+  const yr=d.join_date?new Date(d.join_date*1000).getFullYear():null;
+  return `<small>${d.trades} piețe tranzacționate${yr?` · cont din ${yr}`:''}${pnl!=null?` · profit total <b class="${pnl>=0?'up':'dn'}">${pnl>=0?'+':'−'}${usd(Math.abs(pnl))}</b>`:''}${d.biggest_win>0?` · cel mai mare câștig ${usd(d.biggest_win)}`:''}${vol!=null?` · volum ${usd(vol)}`:''}</small>`;
+}
+async function loadHold(cid){
+  const H=S.hold.get(cid)||{st:'load'}; H.busy=true; S.hold.set(cid,H);
+  try{const r=await jget(`${D}/v2/holders?condition=${cid}&limit=25&include_pnl=true`);H.data=Array.isArray(r&&r.data)?r.data:[];H.st='ok';H.ts=Date.now()}
+  catch(e){if(!H.data){H.st='err'}H.e=e.message}
+  H.busy=false; softRender();
+}
+function holdHtml(it){
+  const cid=it.m.conditionId; if(!cid) return '';
+  let H=S.hold.get(cid);
+  if(!H){S.hold.set(cid,{st:'load'});loadHold(cid);H=S.hold.get(cid)}
+  else if(H.st==='ok'&&!H.busy&&Date.now()-H.ts>120000) loadHold(cid);
+  if(H.st==='load') return '<div class="who"><small>Se încarcă deținătorii actuali…</small></div>';
+  if(H.st==='err') return `<div class="who"><small>Deținători indisponibili (${esc(H.e||'eroare')})</small></div>`;
+  const g=(H.data||[]).find(x=>x.token_id===it.id),all=(g&&g.holders)||[],hs=all.slice(0,5);
+  if(!hs.length) return '<div class="who"><small>Niciun deținător găsit pentru acest rezultat.</small></div>';
+  const tot=all.reduce((s,x)=>s+(+x.amount||0),0);
+  return '<div class="who"><b>Cei mai mari deținători acum</b>'+hs.map(x=>{
+    const sh=tot>0?(+x.amount/tot*100).toFixed(0):'0',tp=x.total_pnl;
+    return `<div class="wr"><span>${esc(x.name||x.pseudonym||short(x.proxy_wallet))}</span> · ${Math.round(+x.amount).toLocaleString('ro-RO')} acțiuni (${sh}% din primii ${all.length})${x.avg_price!=null?` · a intrat la ${(x.avg_price*100).toFixed(0)}%`:''}${x.current_value!=null?` · valoare acum ${usd(x.current_value)}`:''}${tp!=null?` · profit pe piața asta <b class="${tp>=0?'up':'dn'}">${tp>=0?'+':'−'}${usd(Math.abs(tp))}</b>`:''}<br>${profHtml(x.proxy_wallet)}</div>`;
+  }).join('')+'</div>';
+}
+function whoHtml(it){
+  const dd=S.dd,cid=it.m.conditionId,mk=S.mk.get(cid),yn=!!(mk&&mk.yn),outs=yn?['Yes','No']:[it.o];
+  let h='';
+  for(const o of outs){
+    const a=dd&&dd.agg&&dd.agg[cid+'|'+o]; if(!a||!a.w) continue;
+    const top=Object.entries(a.w).filter(e=>e[1].buy>0).sort((x,y)=>y[1].buy-x[1].buy).slice(0,5);
+    if(!top.length) continue;
+    h+=`<div class="who"><b>Cei mai mari cumpărători${yn?' pe '+(o==='Yes'?'DA':'NU'):''} (din tranzacțiile recente)</b>`+top.map(([addr,v])=>`<div class="wr"><span>${esc(v.name||short(addr))}</span> · cumpărat <b>${usd(v.buy)}</b>${v.sell>0?` · retras ${usd(v.sell)}`:''} (${v.n} tranz.)<br>${addr!=='?'?profHtml(addr):''}</div>`).join('')+'</div>';
+  }
+  return h+holdHtml(it);
+}
+function whoBlock(it){
+  const open=S.open.has(it.id);
+  return `<button class="wbtn" data-tk="${it.id}">${open?'▲ Ascunde':'▼ Cine e în spatele banilor?'}</button>${open?whoHtml(it):''}`;
+}
+
 function renderDetRows(){
   if(!S.det||!S.dd) return;
   const list=S.byEv.get(S.det.evId)||[],thr=+$('thr').value||5;
@@ -621,7 +693,7 @@ $('list').addEventListener('click',e=>{
 $('whales').addEventListener('click',e=>{const a=e.target.closest('.al');if(a)openDetail(a.dataset.w,null)});
 $('dtr').addEventListener('click',()=>{});
 $('alerts').addEventListener('click',e=>{const a=e.target.closest('.al');if(!a)return;const x=S.alerts[+a.dataset.a];if(x)openDetail(x.evId,x.id)});
-$('drows').addEventListener('click',e=>{const r=e.target.closest('.card');if(!r||!S.det)return;S.det.id=r.dataset.id;renderDetRows();loadChart();$('chartbox').scrollIntoView({behavior:'smooth',block:'start'})});
+$('drows').addEventListener('click',e=>{const b=e.target.closest('.wbtn');if(b){const k=b.dataset.tk;S.open.has(k)?S.open.delete(k):S.open.add(k);renderDetRows();return}if(e.target.closest('.who'))return;const r=e.target.closest('.card');if(!r||!S.det)return;S.det.id=r.dataset.id;renderDetRows();loadChart();$('chartbox').scrollIntoView({behavior:'smooth',block:'start'})});
 $('rng').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||!S.det)return;S.det.range=b.dataset.r;renderRng();loadChart()});
 $('sum').addEventListener('click',e=>{
   const a=e.target.closest('[data-go]'); if(!a||!S.det) return; e.preventDefault();
