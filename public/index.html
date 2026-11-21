@@ -44,7 +44,8 @@ svg{display:block}
 /* detaliu */
 #sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:20}
 #sheet[hidden]{display:none}
-#bt{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#bt[hidden]{display:none}
+#bt,#sm{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#bt[hidden],#sm[hidden]{display:none}
+.smk{cursor:pointer}.smk .wr{border-top:1px solid #2a4237}
 .bx{background:var(--s);border-radius:10px;padding:10px 12px;margin:10px 0}.bx h4{margin:0 0 6px}
 #cmpbox{margin:8px 0}#cmpout{margin-top:8px}
 .sh{max-width:760px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 14px max(30px,env(safe-area-inset-bottom))}
@@ -82,7 +83,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 <header>
   <h1>Polymarket Sport Radar</h1>
   <div id="st">Se încarcă…</div>
-  <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
+  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
 </header>
 <div class="sc" id="sports"></div>
 <div class="bar" id="chips"></div>
@@ -129,6 +130,14 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
   </div>
 </div>
 
+<div id="sm" hidden>
+  <div class="sh">
+    <div class="top"><button id="smx" aria-label="Închide">✕</button><div><h2>Bani deștepți</h2><div class="meta">Unde au poziții deschise portofelele din topul Polymarket la Sports, în piețele pe care le vezi în pagină.</div></div></div>
+    <div class="bar" style="padding:6px 0"><label>Top după profit pe <select id="smp"><option value="week">7 zile</option><option value="month" selected>30 de zile</option><option value="all">tot timpul</option></select></label><label>Portofele <select id="smn"><option value="20">20</option><option value="30" selected>30</option><option value="50">50</option></select></label><button class="chip on" id="smrun">Caută</button></div>
+    <div class="meta" id="smst"></div>
+    <div id="smout" style="font:14px/1.5 system-ui,sans-serif"></div>
+  </div>
+</div>
 <div id="bt" hidden>
   <div class="sh">
     <div class="top"><button id="btx" aria-label="Închide">✕</button><div><h2>Backtest pe meciuri terminate</h2><div class="meta">Testează regulile din pagină pe meciuri deja încheiate, doar pe sportul ales sus și doar Moneyline.</div></div></div>
@@ -834,6 +843,65 @@ $('btbtn').addEventListener('click',()=>{$('bt').hidden=false;document.body.styl
 $('btx').addEventListener('click',()=>{$('bt').hidden=true;document.body.style.overflow=S.det?'hidden':''});
 $('btrun').addEventListener('click',runBacktest);
 $('cmpbtn').addEventListener('click',compareOdds);
+
+
+/* ---------- bani deștepți: poziții deschise ale portofelelor din top Sports ---------- */
+async function jgetRetry(u){try{return await jget(u)}catch(e){if(/429|503/.test(String(e.message))){await new Promise(r=>setTimeout(r,1500));return jget(u)}throw e}}
+function posLabel(a){
+  const it=S.items.get(a.tok); if(it) return it.label;
+  const mk=S.mk.get(a.cid);
+  if(mk&&mk.yn&&a.outcome==='No'){const y=(S.byEv.get(mk.ev.id)||[]).find(x=>x.m.conditionId===a.cid);return 'NU: '+(y?y.label:mk.line)}
+  return `${a.title} (${a.outcome})`;
+}
+async function runSmart(){
+  const st=$('smst'),out=$('smout'),per=$('smp').value,N=+$('smn').value||30;
+  out.innerHTML='';$('smrun').disabled=true;
+  try{
+    st.textContent='Iau clasamentul Sports…';
+    const lb=await jget(`${D}/v2/leaderboard?time_period=${per}&category=sports&sort_by=PNL&limit=${N}`);
+    const rows=((lb&&lb.data)||[]).filter(r=>r&&r.user_id);
+    if(!rows.length){st.textContent='';out.innerHTML='<div class="empty">Clasamentul nu a returnat portofele.</div>';return}
+    const agg=new Map(),now=Date.now()/1000;let done=0,withPos=0;
+    await pool(rows,4,async w=>{
+      try{
+        const r=await jgetRetry(`${D}/v2/positions?user=${w.user_id}&status=OPEN&sort_by=CURRENT_VALUE&filter_type=CASH&filter_amount=200&limit=200`);
+        let any=false;
+        for(const p of (r&&r.data)||[]){
+          const mk=S.mk.get(p.condition_id); if(!mk||p.mergeable) continue;   // doar piețe din pagină; fără poziții acoperite
+          any=true;
+          const key=p.condition_id+'|'+p.token_id;
+          const a=agg.get(key)||{cid:p.condition_id,tok:p.token_id,outcome:p.outcome,title:p.title,mk,ws:[],value:0,sz:0,wavg:0,cur:p.current_price,newN:0};
+          a.ws.push({n:w.user_name||short(w.user_id),v:p.current_value,avg:p.avg_price,pnl:p.unrealized_pnl});
+          a.value+=p.current_value;a.sz+=p.current_size;a.wavg+=p.avg_price*p.current_size;a.cur=p.current_price;
+          if(p.first_entry_at&&now-p.first_entry_at<6*3600) a.newN++;
+          agg.set(key,a);
+        }
+        if(any) withPos++;
+      }catch(e){}
+      st.textContent=`Poziții ${++done}/${rows.length}…`;
+    });
+    const mk2=new Map();
+    for(const a of agg.values()){const m=mk2.get(a.cid)||{mk:a.mk,outs:[],value:0};m.outs.push(a);m.value+=a.value;mk2.set(a.cid,m)}
+    const list=[...mk2.values()].sort((x,y)=>y.value-x.value).slice(0,25);
+    const pn={week:'7 zile',month:'30 de zile',all:'tot timpul'}[per];
+    st.textContent=`${rows.length} portofele din topul Sports (profit pe ${pn}); ${withPos} au poziții în piețele din pagină.`;
+    if(!list.length){out.innerHTML='<div class="empty">Niciunul dintre aceste portofele nu are acum poziții mari (peste 200 $) în piețele active din pagină.</div>';return}
+    out.innerHTML=list.map(m=>{
+      const ev=m.mk.ev;
+      const rowsH=m.outs.sort((x,y)=>y.value-x.value).map(a=>{
+        const avg=a.sz>0?a.wavg/a.sz:0,top=a.ws.sort((x,y)=>y.v-x.v).slice(0,3).map(x=>`${esc(x.n)} ${usd(x.v)}`).join(', ');
+        return `<div class="wr"><b>${esc(posLabel(a))}</b><br><b>${a.ws.length}</b> ${a.ws.length===1?'portofel':'portofele'} · ${usd(a.value)} · intrare medie <b>${(avg*100).toFixed(0)}%</b> → acum <b>${(a.cur*100).toFixed(0)}%</b>${a.newN?` <span class="bd bu">${a.newN} intrări în ultimele 6h</span>`:''}<br><small>${top}</small></div>`;
+      }).join('');
+      const t=ev.startTime||ev.endDate||'';
+      return `<div class="bx smk" data-ev="${ev.id}" data-tk="${m.outs[0].tok}"><h4>${esc(ev.title)}</h4><div class="meta">${isLive(ev)?'<b style="color:var(--dn)">LIVE</b> · ':''}${t?esc(new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'}))+' · ':''}${esc(tname(m.mk.type))} · apasă pentru detalii</div>${rowsH}</div>`;
+    }).join('')+'<div class="bx"><h4>Cum citești</h4><div class="meta">Vezi doar portofelele din topul de profit la Sports pe perioada aleasă și doar pozițiile lor deschise de peste 200 $. Poziția „acoperită” (aceleași acțiuni pe ambele părți) e ignorată. Profitul din clasament pe 7 sau 30 de zile include și câștiguri nerealizate, deci poate fi noroc recent. Mulți dintre ei pot fi boți sau market makeri, a căror poziție nu e o părere despre meci. Dacă mai mulți intră pe același rezultat, mai ales recent, e un indiciu. Nu e o garanție, iar tu vezi poziția cu întârziere.</div></div>';
+  }catch(e){st.textContent='';out.innerHTML=`<div class="empty">Eroare: ${esc(e.message)}</div>`}
+  finally{$('smrun').disabled=false}
+}
+$('smbtn').addEventListener('click',()=>{$('sm').hidden=false;document.body.style.overflow='hidden'});
+$('smx').addEventListener('click',()=>{$('sm').hidden=true;document.body.style.overflow=S.det?'hidden':''});
+$('smrun').addEventListener('click',runSmart);
+$('smout').addEventListener('click',e=>{const c=e.target.closest('.smk');if(!c)return;$('sm').hidden=true;openDetail(c.dataset.ev,c.dataset.tk)});
 
 $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
