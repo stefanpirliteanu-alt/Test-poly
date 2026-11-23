@@ -97,6 +97,16 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
   <label><input id="hide" type="checkbox" checked> ascunde ≤2% / ≥98%</label>
   <input id="q" type="search" placeholder="Caută echipă / meci">
 </div>
+<details id="fdet"><summary>Filtre <span id="fcnt"></span></summary>
+  <div class="bar">
+    <button class="chip on" id="fstrict">Filtre stricte</button><button class="chip" id="freset">Resetează</button>
+    <label>Volum 24h ≥ $ <input id="fvol" type="number" min="0" value="0"></label>
+    <label>Spread ≤ <input id="fspr" type="number" min="0" max="100" value="100"> pp</label>
+    <label>Preț între <input id="fpmin" type="number" min="0" max="100" value="0">% și <input id="fpmax" type="number" min="0" max="100" value="100">%</label>
+    <label>Începe în <select id="fstart"><option value="0">oricând</option><option value="3">3 ore</option><option value="6">6 ore</option><option value="12">12 ore</option><option value="24">24 de ore</option><option value="48">48 de ore</option></select></label>
+    <label><input id="fbot" type="checkbox"> ascunde boți (portofele cu peste <input id="fbotn" type="number" min="100" value="3000"> piețe)</label>
+  </div>
+</details>
 <details><summary>Setări avansate</summary>
   <div class="bar">
     <label>Refresh <select id="ref"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></label>
@@ -320,6 +330,7 @@ function detect(now){
   const thr=+$('thr').value||5,win=+$('win').value,minv=+$('minv').value||0;
   for(const it of cur()){
     if(it.vol<minv) continue;
+    if(!passF(it,now)) continue;
     if(!$('lv').checked&&isLive(it.ev)) continue;
     const h=S.hist.get(it.id); if(!h||h.length<2) continue;
     const ref=h.find(x=>x.t>=now-win*60e3)||h[0];
@@ -367,9 +378,31 @@ async function loadTrades(){
   S.trades.sort((a,b)=>b.t-a.t); S.trades=S.trades.slice(0,200);
 }
 const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small>${x.w?`<br><small><a href="#" class="wlink" data-wa="${x.w}" data-wn="${esc(x.who||'')}">${esc(x.who||short(x.w))}</a></small><br>${profHtml(x.w)}`:''}</div>`;
+function passF(it,now){
+  const g=id=>+$(id).value;
+  if(it.vol<g('fvol')) return false;
+  const sp=it.m&&it.m.spread!=null?+it.m.spread*100:NaN; if(!isNaN(sp)&&sp>g('fspr')) return false;
+  if(it.p*100<g('fpmin')||it.p*100>g('fpmax')) return false;
+  const h=g('fstart');
+  if(h>0&&!isLive(it.ev)){const t=Date.parse(it.ev.startTime||it.m.gameStartTime||'');if(t&&t-now>h*3600e3) return false}
+  return true;
+}
+const isBot=a=>{if(!$('fbot').checked||!a||a==='?') return false;const p=S.prof.get(String(a).toLowerCase());return !!(p&&p.st==='ok'&&p.d&&p.d.trades>=(+$('fbotn').value||3000))};
+async function profNow(a){
+  const k=String(a).toLowerCase(),p=S.prof.get(k);
+  if(p&&p.st==='ok') return p.d;
+  try{const r=await jgetRetry(`${D}/v2/user-stats?user=${a}`);const d=(r&&r.data)||null;S.prof.set(k,{st:'ok',d});return d}catch(e){return null}
+}
+const setPreset=v=>{
+  const set=(id,x)=>{const e=$(id);if(e.type==='checkbox')e.checked=!!x;else e.value=x};
+  set('fvol',v?1000:0);set('fspr',v?4:100);set('fpmin',v?10:0);set('fpmax',v?90:100);set('fstart',v?24:0);set('fbot',v);set('fbotn',3000);set('phase',v?'pre':'all');
+  save();render();renderDetRows();
+};
 function renderWhales(){
   const minv=+$('bigv').value||2000;
-  const l=S.trades.filter(x=>x.cash>=minv&&(!S.sports.size||x.tags.includes(S.sport))).slice(0,30);
+  const cand=S.trades.filter(x=>x.cash>=minv&&(!S.sports.size||x.tags.includes(S.sport)));
+  if($('fbot').checked) cand.slice(0,40).forEach(x=>x.w&&wantProf(x.w));
+  const l=cand.filter(x=>!isBot(x.w)).slice(0,30);
   $('whales').innerHTML=l.length?l.map(x=>trHtml(x,true)).join(''):`<div class="empty">${S.trErr?'Indisponibil: '+esc(S.trErr):'Niciun pariu mare recent în sportul ales.'}</div>`;
 }
 
@@ -400,8 +433,12 @@ function render(){
   const now=Date.now(),win=+$('win').value,thr=+$('thr').value||5;
   const q=$('q').value.trim().toLowerCase(),sort=$('sort').value,hide=$('hide').checked,ph=$('phase').value;
   const groups=new Map();
+  let tot=0,kept=0;
   for(const it of cur()){
+    tot++;
     if(hide&&(it.p<=0.02||it.p>=0.98)) continue;
+    if(!passF(it,now)) continue;
+    kept++;
     if((ph==='pre'&&isLive(it.ev))||(ph==='live'&&!isLive(it.ev))) continue;
     if(q&&!(it.ev.title+' '+it.label).toLowerCase().includes(q)) continue;
     const g=groups.get(it.evId)||{ev:it.ev,rows:[],mov:0,vol:+it.ev.volume24hr||0};
@@ -409,6 +446,7 @@ function render(){
     g.mov=Math.max(g.mov,Math.abs(it.d||0));
     g.rows.push(it); groups.set(it.evId,g);
   }
+  $('fcnt').textContent=`(${kept} din ${tot} selecții trec de filtre)`;
   const gs=[...groups.values()].sort((a,b)=>sort==='mov'?b.mov-a.mov:b.vol-a.vol).slice(0,60);
   $('list').innerHTML=gs.length?gs.map(g=>{
     const t=g.ev.startTime||g.ev.endDate||g.ev.startDate;
@@ -579,7 +617,7 @@ function holdHtml(it){
   else if(H.st==='ok'&&!H.busy&&Date.now()-H.ts>120000) loadHold(cid);
   if(H.st==='load') return '<div class="who"><small>Se încarcă deținătorii actuali…</small></div>';
   if(H.st==='err') return `<div class="who"><small>Deținători indisponibili (${esc(H.e||'eroare')})</small></div>`;
-  const g=(H.data||[]).find(x=>x.token_id===it.id),all=(g&&g.holders)||[],hs=all.slice(0,5);
+  const g=(H.data||[]).find(x=>x.token_id===it.id),all=(g&&g.holders)||[],hs=all.filter(x=>!isBot(x.proxy_wallet)).slice(0,5);
   if(!hs.length) return '<div class="who"><small>Niciun deținător găsit pentru acest rezultat.</small></div>';
   const tot=all.reduce((s,x)=>s+(+x.amount||0),0);
   return '<div class="who"><b>Cei mai mari deținători acum</b>'+hs.map(x=>{
@@ -592,7 +630,7 @@ function whoHtml(it){
   let h='';
   for(const o of outs){
     const a=dd&&dd.agg&&dd.agg[cid+'|'+o]; if(!a||!a.w) continue;
-    const top=Object.entries(a.w).filter(e=>e[1].buy>0).sort((x,y)=>y[1].buy-x[1].buy).slice(0,5);
+    const top=Object.entries(a.w).filter(e=>e[1].buy>0&&!isBot(e[0])).sort((x,y)=>y[1].buy-x[1].buy).slice(0,5);
     if(!top.length) continue;
     h+=`<div class="who"><b>Cei mai mari cumpărători${yn?' pe '+(o==='Yes'?'DA':'NU'):''} (din tranzacțiile recente)</b>`+top.map(([addr,v])=>`<div class="wr"><span>${addr!=='?'?`<a href="#" class="wlink" data-wa="${addr}" data-wn="${esc(v.name||'')}">${esc(v.name||short(addr))}</a>`:esc(v.name||short(addr))}</span> · cumpărat <b>${usd(v.buy)}</b>${v.sell>0?` · retras ${usd(v.sell)}`:''} (${v.n} tranz.)<br>${addr!=='?'?profHtml(addr):''}</div>`).join('')+'</div>';
   }
@@ -621,7 +659,7 @@ function renderDetRows(){
   if(dd.agg) h+=h?`<div class="meta" style="margin-top:12px">${hid} predicții fără nicio cumpărare sau retragere sunt ascunse.</div>`:'<div class="empty">Nu am găsit nicio cumpărare sau retragere în tranzacțiile recente ale acestui meci.</div>';
   $('drows').innerHTML=h||'<div class="empty">Nicio altă predicție.</div>';
   renderSum(list,thr);
-  const tl=S.trades.filter(x=>x.evId===S.det.evId).slice(0,12);
+  const tl=S.trades.filter(x=>x.evId===S.det.evId&&!isBot(x.w)).slice(0,12);
   $('dtr').innerHTML=tl.length?tl.map(x=>trHtml(x,false)).join(''):'<div class="empty">Niciun pariu peste pragul ales.</div>';
 }
 async function loadChart(){
@@ -712,7 +750,7 @@ async function tick(){
 }
 
 /* ---------- setări + evenimente ---------- */
-const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey'];
+const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn'];
 function save(){try{const c={types:[...S.types],sport:S.sport};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg2',JSON.stringify(c))}catch(e){}}
 try{const c=JSON.parse(localStorage.getItem('cfg2')||'{}');
   if(c.types&&c.types.length) S.types=new Set(c.types);
@@ -880,8 +918,9 @@ async function runSmart(){
     const lb=await jget(`${D}/v2/leaderboard?time_period=${per}&category=sports&sort_by=PNL&limit=${N}`);
     const rows=((lb&&lb.data)||[]).filter(r=>r&&r.user_id);
     if(!rows.length){st.textContent='';out.innerHTML='<div class="empty">Clasamentul nu a returnat portofele.</div>';return}
-    const agg=new Map(),now=Date.now()/1000;let done=0,withPos=0;
+    const agg=new Map(),now=Date.now()/1000;let done=0,withPos=0,skipped=0;
     await pool(rows,4,async w=>{
+      if($('fbot').checked){const d=await profNow(w.user_id);if(d&&d.trades>=(+$('fbotn').value||3000)){skipped++;st.textContent=`Poziții ${++done}/${rows.length}…`;return}}
       try{
         const r=await jgetRetry(`${D}/v2/positions?user=${w.user_id}&status=OPEN&sort_by=CURRENT_VALUE&filter_type=CASH&filter_amount=200&limit=200`);
         let any=false;
@@ -903,7 +942,7 @@ async function runSmart(){
     for(const a of agg.values()){const m=mk2.get(a.cid)||{mk:a.mk,outs:[],value:0};m.outs.push(a);m.value+=a.value;mk2.set(a.cid,m)}
     const list=[...mk2.values()].sort((x,y)=>y.value-x.value).slice(0,25);
     const pn={week:'7 zile',month:'30 de zile',all:'tot timpul'}[per];
-    st.textContent=`${rows.length} portofele din topul Sports (profit pe ${pn}); ${withPos} au poziții în piețele din pagină.`;
+    st.textContent=`${rows.length} portofele din topul Sports (profit pe ${pn}); ${withPos} au poziții în piețele din pagină.${skipped?` ${skipped} excluse ca boți.`:''}`;
     if(!list.length){out.innerHTML='<div class="empty">Niciunul dintre aceste portofele nu are acum poziții mari (peste 200 $) în piețele active din pagină.</div>';return}
     out.innerHTML=list.map(m=>{
       const ev=m.mk.ev;
@@ -1026,11 +1065,13 @@ $('fllist').addEventListener('click',e=>{const b=e.target.closest('[data-un]');i
 $('flout').addEventListener('click',e=>{const c=e.target.closest('.wlk');if(!c)return;$('fl').hidden=true;anyOverlay();openDetail(c.dataset.ev,c.dataset.tk)});
 folSave();
 
+$('fstrict').addEventListener('click',()=>setPreset(true));
+$('freset').addEventListener('click',()=>setPreset(false));
 $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
 $('chart').addEventListener('pointermove',tipAt);
 $('chart').addEventListener('pointerdown',tipAt);
-['thr','win','hide','sort','q','minv','phase','bigv','lv'].forEach(id=>$(id).addEventListener('input',()=>{save();render();renderDetRows()}));
+['thr','win','hide','sort','q','minv','phase','bigv','lv','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn'].forEach(id=>$(id).addEventListener('input',()=>{save();render();renderDetRows()}));
 $('ref').addEventListener('change',()=>{save();tick()});
 $('wk').addEventListener('change',()=>{save();tick()});
 try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
