@@ -44,7 +44,7 @@ svg{display:block}
 /* detaliu */
 #sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:20}
 #sheet[hidden]{display:none}
-#bt,#sm,#fl,#ex{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#ex[hidden]{display:none}#wl{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:30}#bt[hidden],#sm[hidden],#fl[hidden],#wl[hidden]{display:none}
+#bt,#sm,#fl,#ex,#od{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#ex[hidden],#od[hidden]{display:none}#wl{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:30}#bt[hidden],#sm[hidden],#fl[hidden],#wl[hidden]{display:none}
 a.wlink{color:var(--ac);text-decoration:underline}.wlk{cursor:pointer}.tx{padding:7px 0;border-top:1px solid #2a4237;font:13px/1.45 system-ui,sans-serif}
 .smk{cursor:pointer}.smk .wr{border-top:1px solid #2a4237}
 .bx{background:var(--s);border-radius:10px;padding:10px 12px;margin:10px 0}.bx h4{margin:0 0 6px}
@@ -84,7 +84,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 <header>
   <h1>Polymarket Sport Radar</h1>
   <div id="st">Se încarcă…</div>
-  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="flbtn" style="margin-top:8px">★ Urmărite</button> <button class="chip on" id="exbtn" style="margin-top:8px">Sistem expert</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
+  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="flbtn" style="margin-top:8px">★ Urmărite</button> <button class="chip on" id="odbtn" style="margin-top:8px">Scăderi de cotă</button> <button class="chip" id="exbtn" style="margin-top:8px">Sistem expert</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
 </header>
 <div class="sc" id="sports"></div>
 <div class="bar" id="chips"></div>
@@ -141,6 +141,24 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
   </div>
 </div>
 
+<div id="od" hidden>
+  <div class="sh">
+    <div class="top"><button id="odx" aria-label="Închide">✕</button><div><h2>Scăderi de cotă</h2><div class="meta">Caută rezultate a căror cotă a scăzut brusc (de exemplu de la 2,50 la 1,60) la un anumit tip de pariu și arată câți bani s-au pus acolo.</div></div></div>
+    <div class="bar" style="padding:6px 0">
+      <label>Sport <select id="odsp"></select></label>
+      <label>Tip de pariu <select id="odt"><option value="ml">Moneyline</option><option value="spread">Handicap</option><option value="total">Total (peste/sub)</option><option value="btts">Ambele marchează</option><option value="half">Repriză / sfert</option><option value="score">Scor exact</option><option value="prop">Prop-uri</option><option value="out">Câștigător final</option></select></label>
+      <label>Compar cu <select id="odw"><option value="30m">acum 30 min</option><option value="1h">acum 1 oră</option><option value="6h" selected>acum 6 ore</option><option value="24h">acum 24 de ore</option><option value="max">cota de la deschidere</option></select></label>
+      <label>Cota scade cu cel puțin <select id="odp"><option value="15">15%</option><option value="25" selected>25%</option><option value="35">35%</option><option value="50">50%</option></select></label>
+      <label>Meciuri <select id="odph"><option value="pre">neîncepute</option><option value="live">live</option><option value="all" selected>toate</option></select></label>
+      <label>Bani cumpărați ≥ $ <input id="odm" type="number" min="0" value="0"></label>
+      <label>Sortare <select id="odsr"><option value="drop">cea mai mare scădere</option><option value="money">cei mai mulți bani</option></select></label>
+      <label><input id="odauto" type="checkbox"> urmărește automat (la 2 min, cât pagina e deschisă) și notifică</label>
+      <button class="chip on" id="odrun">Caută</button>
+    </div>
+    <div class="meta" id="odst"></div>
+    <div id="odout" style="font:14px/1.5 system-ui,sans-serif"></div>
+  </div>
+</div>
 <div id="ex" hidden>
   <div class="sh">
     <div class="top"><button id="exx" aria-label="Închide">✕</button><div><h2>Sistem expert</h2><div class="meta">Combină mai multe semnale într-un singur clasament, își corectează singur ponderile pe meciuri terminate și ține un jurnal automat ca să vezi dacă merge.</div></div></div>
@@ -763,7 +781,7 @@ async function tick(){
 }
 
 /* ---------- setări + evenimente ---------- */
-const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn'];
+const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn','odt','odw','odp','odph','odm','odsr','odauto'];
 function save(){try{const c={types:[...S.types],sport:S.sport};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg2',JSON.stringify(c))}catch(e){}}
 try{const c=JSON.parse(localStorage.getItem('cfg2')||'{}');
   if(c.types&&c.types.length) S.types=new Set(c.types);
@@ -981,7 +999,7 @@ S.fol=(()=>{try{return JSON.parse(localStorage.getItem('fol')||'[]')}catch(e){re
 const folSave=()=>{try{localStorage.setItem('fol',JSON.stringify(S.fol))}catch(e){}$('flbtn').textContent=`★ Urmărite (${S.fol.length})`};
 const isFol=a=>S.fol.some(x=>x.a.toLowerCase()===String(a).toLowerCase());
 const tmf=ts=>new Date(ts*1000).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-const anyOverlay=()=>{document.body.style.overflow=(!$('ex').hidden||!$('sheet').hidden||!$('bt').hidden||!$('sm').hidden||!$('fl').hidden||!$('wl').hidden)?'hidden':''};
+const anyOverlay=()=>{document.body.style.overflow=(!$('od').hidden||!$('ex').hidden||!$('sheet').hidden||!$('bt').hidden||!$('sm').hidden||!$('fl').hidden||!$('wl').hidden)?'hidden':''};
 function wlBtn(){const f=S.wl&&isFol(S.wl.a);$('wlfb').textContent=f?'★ Urmărit (apasă ca să renunți)':'★ Urmărește';$('wlfb').className='chip'+(f?' on':'')}
 async function openWallet(addr,name){
   if(!addr||addr==='?') return;
@@ -1323,6 +1341,98 @@ $('exx').addEventListener('click',()=>{$('ex').hidden=true;anyOverlay()});
 $('exrun').addEventListener('click',()=>{$('exst').textContent='Se actualizează…';expertRun(false).then(()=>{$('exst').textContent=''}).catch(e=>{$('exst').textContent='Eroare: '+e.message})});
 $('excal').addEventListener('click',calibrate);
 $('exlist').addEventListener('click',e=>{const c=e.target.closest('.smk');if(!c)return;$('ex').hidden=true;anyOverlay();openDetail(c.dataset.ev,c.dataset.tk)});
+
+
+/* ---------- scăderi de cotă: cota scade brusc + banii pariați ---------- */
+const HC=new Map(),ODW={'30m':{m:30,iv:'1h',fid:1},'1h':{m:60,iv:'1h',fid:1},'6h':{m:360,iv:'6h',fid:5},'24h':{m:1440,iv:'1d',fid:15},'max':{m:1e12,iv:'max',fid:180}};
+S.odSeen=new Map();S.odBusy=false;S.odRes=null;
+async function histFor(tok,w){
+  const key=tok+'|'+w.iv,c=HC.get(key); if(c&&Date.now()-c.t<240e3) return c.h;
+  const r=await jget(`${C}/prices-history?market=${tok}&interval=${w.iv}&fidelity=${w.fid}`);
+  const h=(r.history||[]).map(x=>({t:x.t*1000,p:x.p}));HC.set(key,{t:Date.now(),h});return h;
+}
+function oddsSpark(seg){
+  if(seg.length<2) return '';
+  const o=seg.map(x=>1/x.p),mn=Math.min(...o),mx=Math.max(...o),r=(mx-mn)||1,w=96,ht=26,t0=seg[0].t,tr=(seg[seg.length-1].t-t0)||1;
+  const pts=seg.map((x,i)=>`${((x.t-t0)/tr*w).toFixed(1)},${(ht-2-(o[i]-mn)/r*(ht-4)).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${ht}" viewBox="0 0 ${w} ${ht}" style="display:inline-block;vertical-align:middle;margin-left:8px"><polyline fill="none" stroke="#4fd18b" stroke-width="1.6" points="${pts}"/></svg>`;
+}
+function odFillSports(){
+  const sel=$('odsp'),saved=(()=>{try{return localStorage.getItem('odsp')}catch(e){return null}})(),cur0=sel.value||saved||(S.sports.has('Soccer')?'Soccer':S.sport);
+  const names=[...S.sports.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+  const h=names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if(sel._h!==h){sel.innerHTML=h;sel._h=h}
+  if(names.includes(cur0)) sel.value=cur0; else if(names.length) sel.value=names.includes('Soccer')?'Soccer':names[0];
+}
+async function runOdds(auto){
+  if(S.odBusy) return; S.odBusy=true;
+  const st=$('odst'),out=$('odout');$('odrun').disabled=true;
+  try{
+    odFillSports();
+    const sp=$('odsp').value,ty=$('odt').value,W=ODW[$('odw').value],pct=+$('odp').value,ph=$('odph').value,minM=+$('odm').value||0,sort=$('odsr').value,now=Date.now();
+    try{localStorage.setItem('odsp',sp)}catch(e){}
+    let cand=[...S.items.values()].filter(it=>it.type===ty&&(!S.sports.size||it.tags.includes(sp))&&it.p>=0.03&&it.p<=0.97&&(ph==='all'||(ph==='pre'?!isLive(it.ev):isLive(it.ev))));
+    cand.sort((a,b)=>b.vol-a.vol);const total=cand.length;cand=cand.slice(0,200);
+    if(!cand.length){st.textContent='';out.innerHTML='<div class="empty">Nu există selecții de acest tip pentru sportul ales (după filtrul de meciuri). Încearcă alt tip de pariu sau „toate”.</div>';return}
+    let done=0;
+    await pool(cand,6,async it=>{try{it._h=await histFor(it.id,W)}catch(e){it._h=null}st.textContent=`Istoric cote ${++done}/${cand.length}…`});
+    const hits=[];
+    for(const it of cand){
+      const h=it._h; if(!h||h.length<2) continue;
+      const win=h.filter(x=>x.t>=now-W.m*60e3),seg=win.length>=2?win:h;
+      const p0=seg[0].p,o0=1/p0,o1=1/it.p,drop=(o0-o1)/o0;
+      if(drop<pct/100) continue;
+      const mid=p0+(it.p-p0)/2,tm=(seg.find(x=>x.p>=mid)||seg[seg.length-1]).t;
+      hits.push({it,seg,p0,o0,o1,drop,t0:seg[0].t,tm});
+    }
+    st.textContent='Caut banii pariați…';
+    const cids=[...new Set(hits.map(x=>x.it.m.conditionId).filter(Boolean))].slice(0,80);
+    let tr=[],trErr='',trunc=false;
+    try{if(cids.length){tr=await fetchTrades(cids,1000);trunc=fetchTrades.trunc}}catch(e){trErr=e.message}
+    const byTok=new Map();for(const x of tr){if(!byTok.has(x.tok)) byTok.set(x.tok,[]);byTok.get(x.tok).push(x)}
+    for(const h of hits){
+      const L=(byTok.get(h.it.id)||[]).filter(x=>x.ts>=h.t0);let buy=0,sell=0,mx=0;const bw=new Map();
+      for(const x of L){const c=x.size*x.price;if(x.side==='BUY'){buy+=c;mx=Math.max(mx,c);if(x.w&&!isBot(x.w)){const o=bw.get(x.w)||{v:0,n:x.who};o.v+=c;bw.set(x.w,o)}}else sell+=c}
+      Object.assign(h,{buy,sell,mx,nb:bw.size,nt:L.length,top:[...bw.entries()].sort((a,b)=>b[1].v-a[1].v).slice(0,3)});
+    }
+    const list=hits.filter(h=>h.buy>=minM).sort((a,b)=>sort==='money'?b.buy-a.buy:b.drop-a.drop).slice(0,40);
+    S.odRes={list,at:now};
+    // notificări pentru scăderi noi
+    if(auto){
+      for(const h of list){
+        const k=h.it.id+'|'+Math.floor(h.drop*20);
+        if(!S.odSeen.has(k)){S.odSeen.set(k,now);try{new Notification(`Cota a scăzut ${h.o0.toFixed(2)} → ${h.o1.toFixed(2)}: ${h.it.label}`,{body:`${h.it.ev.title} · cumpărat ${usd(h.buy)}`})}catch(e){}}
+      }
+    }
+    const tf=ts=>new Date(ts).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    st.textContent=`${list.length} scăderi găsite din ${total} selecții verificate${total>cand.length?` (primele ${cand.length} după volum)`:''} · actualizat ${new Date(now).toLocaleTimeString('ro-RO')}`;
+    out.innerHTML=(list.length?list.map(h=>{
+      const it=h.it,live=isLive(it.ev),t=it.ev.startTime||it.ev.endDate||'';
+      const q=h.buy<300?'<span class="bd fl">puțini bani în spate: posibil zgomot</span>':(h.nb>=3&&h.buy>=1000?'<span class="bd bu">mai mulți cumpărători, sumă serioasă</span>':'');
+      return `<div class="bx smk" data-ev="${it.evId}" data-tk="${it.id}">
+        <h4>${esc(it.label)}</h4>
+        <div class="meta">${live?'<b style="color:var(--dn)">LIVE</b> · ':''}${esc(it.ev.title)}${t?' · '+esc(new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})):''}</div>
+        <div style="font-size:17px">cota <b>${h.o0.toFixed(2)}</b> → <b class="up">${h.o1.toFixed(2)}</b> <span class="bd bu">−${(h.drop*100).toFixed(0)}%</span>${oddsSpark(h.seg)}</div>
+        <div>șansa dată de piață ${(h.p0*100).toFixed(0)}% → <b>${(it.p*100).toFixed(0)}%</b> (+${((it.p-h.p0)*100).toFixed(1)} pp)</div>
+        <div class="meta">de la ${tf(h.t0)} · jumătate din mișcare s-a făcut în jur de ${tf(h.tm)}</div>
+        <div class="mn">De la ${tf(h.t0)} s-au cumpărat <b class="up">${usd(h.buy)}</b> pe acest rezultat (${h.nb} cumpărători diferiți, ${h.nt} tranzacții, cea mai mare ${usd(h.mx)}) · vândut ${usd(h.sell)} · net <b>${h.buy-h.sell>=0?'+':'−'}${usd(Math.abs(h.buy-h.sell))}</b></div>
+        ${h.top.length?`<div class="meta">Cei mai mari cumpărători: ${h.top.map(([a,o])=>`<a href="#" class="wlink" data-wa="${a}" data-wn="${esc(o.n||'')}">${esc(o.n||short(a))}</a> ${usd(o.v)}`).join(', ')}</div>`:''}
+        <div style="margin-top:4px">${q}</div></div>`;
+    }).join(''):'<div class="bx"><div class="empty">Nicio scădere de cotă peste prag acum. Poți coborî pragul, schimba fereastra sau tipul de pariu.</div></div>')+
+    (trErr?`<div class="meta">Banii pariați indisponibili: ${esc(trErr)}</div>`:'')+(trunc?'<div class="meta">Lista de tranzacții e incompletă (Polymarket dă maximum 1.000 pe grup), deci sumele pot fi mai mici decât cele reale.</div>':'')+
+    '<div class="bx"><h4>Cum citești</h4><div class="meta">Cota mică înseamnă că piața crede rezultatul mai probabil. O scădere de la 2,50 la 1,60 înseamnă că șansa implicită a urcat de la 40% la 62,5%. Contează banii din spatele mișcării. O cotă care scade din câteva tranzacții mici, pe o piață subțire, e adesea zgomot. Mai mulți cumpărători diferiți și sume mari sunt un semn mai bun, dar nu garantează că știu ceva. Sumele sunt cumpărările găsite de la momentul de referință. La un meci foarte tranzacționat pot fi incomplete. Nu sunt consilier financiar.</div></div>';
+  }catch(e){st.textContent='';out.innerHTML=`<div class="empty">Eroare: ${esc(e.message)}</div>`}
+  finally{S.odBusy=false;$('odrun').disabled=false}
+}
+let odTimer=null;
+function odAuto(){clearInterval(odTimer);if($('odauto').checked){odTimer=setInterval(()=>runOdds(true).catch(()=>{}),120000)}}
+$('odbtn').addEventListener('click',()=>{$('od').hidden=false;document.body.style.overflow='hidden';odFillSports()});
+$('odx').addEventListener('click',()=>{$('od').hidden=true;anyOverlay()});
+$('odrun').addEventListener('click',()=>runOdds(false));
+$('odauto').addEventListener('change',()=>{save();odAuto();if($('odauto').checked) runOdds(true)});
+['odt','odw','odp','odph','odm','odsr'].forEach(id=>$(id).addEventListener('change',save));
+if($('odauto').checked) odAuto();
+$('odout').addEventListener('click',e=>{const c=e.target.closest('.smk');if(!c)return;$('od').hidden=true;anyOverlay();openDetail(c.dataset.ev,c.dataset.tk)});
 
 $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
