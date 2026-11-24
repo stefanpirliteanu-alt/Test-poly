@@ -144,7 +144,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 <div id="ex" hidden>
   <div class="sh">
     <div class="top"><button id="exx" aria-label="Închide">✕</button><div><h2>Sistem expert</h2><div class="meta">Combină mai multe semnale într-un singur clasament, își corectează singur ponderile pe meciuri terminate și ține un jurnal automat ca să vezi dacă merge.</div></div></div>
-    <div class="bar" style="padding:6px 0"><button class="chip on" id="exrun">Actualizează</button><button class="chip" id="excal">Auto-calibrează (14 zile)</button></div>
+    <div class="bar" style="padding:6px 0"><button class="chip on" id="exrun">Actualizează</button><button class="chip" id="excal">Auto-calibrează</button><label>Interval <select id="exd"><option value="14">14 zile</option><option value="30" selected>30 de zile</option></select></label></div>
     <div class="meta" id="exst"></div>
     <div id="excalr"></div>
     <div id="exlist"></div>
@@ -1119,14 +1119,27 @@ function fitRidge(rows,lam){
 const predK=(cal,ks)=>cal.b0+ks.reduce((t,k)=>t+(cal.coef[k]||0),0);
 function corrP(a,b){const n=a.length;if(n<3)return 0;const ma=mean(a),mb=mean(b);let sa=0,sb=0,sab=0;for(let i=0;i<n;i++){sa+=(a[i]-ma)**2;sb+=(b[i]-mb)**2;sab+=(a[i]-ma)*(b[i]-mb)}return sa&&sb?sab/Math.sqrt(sa*sb):0}
 
-/* calibrare: învață din meciuri terminate ce însemnau semnalele (CLV = prețul de la start minus prețul de la semnal) */
+/* calibrare: învață din meciuri terminate ce au însemnat săriturile de preț, cu grup de control */
+const COST=1;                                   // cost presupus (spread + alunecare), în pp
+S.calD=(()=>{try{return JSON.parse(localStorage.getItem('calD')||'null')}catch(e){return null}})();
+S.rep=(()=>{try{return JSON.parse(localStorage.getItem('rep')||'null')}catch(e){return null}})();
+const g1=a=>{const n=a.length;return n?{n,m:mean(a),se:n>1?sdv(a)/Math.sqrt(n):0}:{n:0,m:0,se:0}};
+function fitModel(rows){
+  if(rows.length<60) return null;
+  rows=rows.slice().sort((a,b)=>a.start-b.start);
+  const cut=Math.floor(rows.length*0.7),train=rows.slice(0,cut),test=rows.slice(cut);
+  const m1=fitRidge(train,15),pt=test.map(r=>predK(m1,r.k)),yt=test.map(r=>r.y),rc=corrP(pt,yt);
+  const idx=pt.map((p,i)=>[p,i]).sort((a,b)=>b[0]-a[0]),q=Math.max(1,Math.floor(idx.length/3));
+  const fin=fitRidge(rows,15);
+  return {b0:fin.b0,coef:fin.coef,n:rows.length,ntest:test.length,corr:rc,topY:mean(idx.slice(0,q).map(x=>yt[x[1]])),botY:mean(idx.slice(-q).map(x=>yt[x[1]])),dt:Date.now()};
+}
 async function calibrate(){
-  const st=$('exst'),days=14;$('excal').disabled=true;
+  const st=$('exst'),days=+$('exd').value||30;$('excal').disabled=true;
   try{
     st.textContent='Caut meciuri terminate…';
-    const since=new Date(Date.now()-days*864e5).toISOString();
+    const since=new Date(Date.now()-days*864e5).toISOString(),pages=days>14?3:2;
     let evs=[];
-    for(const off of [0,200]){try{evs=evs.concat(await jget(`${G}/events?tag_id=1&closed=true&limit=200&offset=${off}&order=volume&ascending=false&end_date_min=${since}`))}catch(e){if(off===0) throw e}}
+    for(let pg=0;pg<pages;pg++){try{evs=evs.concat(await jget(`${G}/events?tag_id=1&closed=true&limit=200&offset=${pg*200}&order=volume&ascending=false&end_date_min=${since}`))}catch(e){if(pg===0) throw e}}
     const toks=[],cids=new Set();
     for(const ev of evs){
       const mls=(ev.markets||[]).filter(m=>mtype(m,ev)==='ml'); if(!mls.length||mls.length>=6) continue;
@@ -1138,7 +1151,7 @@ async function calibrate(){
         if(m.conditionId) cids.add(m.conditionId);
       }
     }
-    toks.sort((a,b)=>b.vol-a.vol);toks.length=Math.min(toks.length,260);
+    toks.sort((a,b)=>b.vol-a.vol);toks.length=Math.min(toks.length,days>14?420:260);
     if(toks.length<20){st.textContent='';$('excalr').innerHTML='<div class="empty">Prea puține meciuri terminate găsite pentru calibrare.</div>';return}
     let done=0;
     await pool(toks,6,async t=>{
@@ -1148,32 +1161,37 @@ async function calibrate(){
     st.textContent='Tranzacții…';
     let tr=[];try{tr=await fetchTrades([...cids],1000)}catch(e){}
     const byTok=new Map();for(const x of tr){if(!byTok.has(x.tok)) byTok.set(x.tok,[]);byTok.get(x.tok).push(x)}
-    const rows=[];
+    const U=[],Dn=[],Ct=[];
     for(const t of toks){
       const h=t.h; if(h.length<8) continue;
       const last=h[h.length-1]; if(last.t*1000<t.start-1800e3) continue;
-      const trs=byTok.get(t.tok)||[];let lastSig=-1e18;
+      const trs=byTok.get(t.tok)||[];let lu=-1e18,ld=-1e18;const cc=[];
+      const mk=(i,jmp)=>{
+        const w=new Set();let net=0;
+        for(const x of trs){const ts=x.ts/1000;if(ts>h[i].t||ts<h[i].t-3600) continue;const c=x.size*x.price;if(x.side==='BUY'){net+=c;if(x.w) w.add(x.w)}else net-=c}
+        const f={jump:jmp,time:(t.start/1000-h[i].t)/3600,price:h[i].p,buy:w.size,net,liq:t.vol};
+        return {k:fkeys(f),y:(last.p-h[i].p)*100,start:t.start,liq:t.vol};
+      };
       for(let i=1;i<h.length;i++){
         let j=i;while(j>0&&h[j-1].t>=h[i].t-1800) j--;
         const d=(h[i].p-h[j].p)*100,hrs=(t.start/1000-h[i].t)/3600;
-        if(d<3||h[i].p<0.03||h[i].p>0.97||hrs<0.5||h[i].t-lastSig<1800) continue;
-        lastSig=h[i].t;
-        const w=new Set();let net=0;
-        for(const x of trs){const ts=x.ts/1000;if(ts>h[i].t||ts<h[i].t-3600) continue;const c=x.size*x.price;if(x.side==='BUY'){net+=c;if(x.w) w.add(x.w)}else net-=c}
-        const f={jump:d,time:hrs,price:h[i].p,buy:w.size,net,liq:t.vol};
-        rows.push({k:fkeys(f),y:(last.p-h[i].p)*100,start:t.start});
+        if(hrs<0.5||h[i].p<0.03||h[i].p>0.97) continue;
+        if(d>=3&&h[i].t-lu>=1800){lu=h[i].t;U.push(mk(i,d))}
+        else if(d<=-3&&h[i].t-ld>=1800){ld=h[i].t;Dn.push(mk(i,-d))}
+        else if(Math.abs(d)<1) cc.push({y:(last.p-h[i].p)*100,liq:t.vol});
       }
+      if(cc.length){const k=Math.min(3,cc.length);for(let q=0;q<k;q++) Ct.push(cc[Math.floor((q+0.5)*cc.length/k)])}
     }
-    if(rows.length<60){st.textContent='';$('excalr').innerHTML=`<div class="empty">Doar ${rows.length} semnale istorice: prea puține pentru o calibrare de încredere (minim 60). Încearcă mai târziu sau mărește intervalul.</div>`;return}
-    rows.sort((a,b)=>a.start-b.start);
-    const cut=Math.floor(rows.length*0.7),train=rows.slice(0,cut),test=rows.slice(cut);
-    const m1=fitRidge(train,15),pt=test.map(r=>predK(m1,r.k)),yt=test.map(r=>r.y),rc=corrP(pt,yt);
-    const idx=pt.map((p,i)=>[p,i]).sort((a,b)=>b[0]-a[0]),q=Math.max(1,Math.floor(idx.length/3));
-    const topY=mean(idx.slice(0,q).map(x=>yt[x[1]])),botY=mean(idx.slice(-q).map(x=>yt[x[1]]));
-    const fin=fitRidge(rows,15);
-    S.cal={b0:fin.b0,coef:fin.coef,n:rows.length,ntest:test.length,corr:rc,topY,botY,base:mean(rows.map(r=>r.y)),dt:Date.now(),days};
-    try{localStorage.setItem('cal',JSON.stringify(S.cal))}catch(e){}
-    st.textContent='Calibrare gata.';renderExpert();
+    const L=r=>r.liq>=50000,sp=(rows,f)=>g1(rows.filter(f).map(r=>r.y));
+    S.rep={days,nU:U.length,nD:Dn.length,nC:Ct.length,dt:Date.now(),
+      all:{up:g1(U.map(r=>r.y)),dn:g1(Dn.map(r=>r.y)),ct:g1(Ct.map(r=>r.y))},
+      liq:{up:sp(U,L),dn:sp(Dn,L),ct:sp(Ct,L)},
+      thin:{up:sp(U,r=>!L(r)),dn:sp(Dn,r=>!L(r)),ct:sp(Ct,r=>!L(r))}};
+    S.cal=fitModel(U);if(S.cal) S.cal.days=days;
+    S.calD=fitModel(Dn);if(S.calD) S.calD.days=days;
+    try{localStorage.setItem('rep',JSON.stringify(S.rep));localStorage.setItem('cal',JSON.stringify(S.cal));localStorage.setItem('calD',JSON.stringify(S.calD))}catch(e){}
+    st.textContent=U.length<60&&Dn.length<60?`Doar ${U.length} sărituri în sus și ${Dn.length} în jos: prea puține pentru modele (minim 60 fiecare).`:'Calibrare gata.';
+    renderExpert();
   }catch(e){st.textContent='';$('excalr').innerHTML=`<div class="empty">Eroare la calibrare: ${esc(e.message)}</div>`}
   finally{$('excal').disabled=false}
 }
@@ -1188,42 +1206,43 @@ function edgeFor(it){
   }catch(e){return null}
 }
 async function expertRun(silent){
-  const now=Date.now();let cand=[];
+  const now=Date.now(),calU=S.cal&&S.cal.n>=60?S.cal:null,calD=S.calD&&S.calD.n>=60?S.calD:null;let cand=[];
   for(const it of cur()){
     if(!passF(it,now)||isLive(it.ev)) continue;
-    const d=delta(it.id,30,now); if(d===null||d<3||it.p<0.03||it.p>0.97) continue;
+    const d=delta(it.id,30,now); if(d===null||Math.abs(d)<3||it.p<0.03||it.p>0.97) continue;
+    const dir=d>0?'up':'dn'; if(dir==='dn'&&!calD) continue;
     const st=Date.parse(it.ev.startTime||it.m.gameStartTime||''); if(!st) continue;
     const hrs=(st-now)/3600e3; if(hrs<0.25) continue;
-    cand.push({it,d,hrs,st});
+    cand.push({it,d,dir,hrs,st});
   }
-  cand.sort((a,b)=>b.d-a.d);cand=cand.slice(0,40);
+  cand.sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));cand=cand.slice(0,40);
   const cids=[...new Set(cand.map(c=>c.it.m.conditionId).filter(Boolean))].slice(0,40);
   let tr=[];try{if(cids.length) tr=await fetchTrades(cids,500)}catch(e){}
   const byTok=new Map();for(const x of tr){if(!byTok.has(x.tok)) byTok.set(x.tok,[]);byTok.get(x.tok).push(x)}
-  const cal=S.cal&&S.cal.n>=60?S.cal:null,res=[];
+  const res=[];
   for(const c of cand){
     const it=c.it,w=new Set();let net=0;
     for(const x of byTok.get(it.id)||[]){if(x.ts<now-3600e3) continue;const v=x.size*x.price;if(x.side==='BUY'){net+=v;if(x.w&&!isBot(x.w)) w.add(x.w)}else net-=v}
-    const f={jump:c.d,time:c.hrs,price:it.p,buy:w.size,net,liq:+it.ev.volume||+it.ev.volume24hr||0};
+    const f={jump:Math.abs(c.d),time:c.hrs,price:it.p,buy:w.size,net,liq:+it.ev.volume||+it.ev.volume24hr||0};
     const smart=(S.smart&&S.smart.get(it.id))||0,edge=edgeFor(it),spr=it.m.spread!=null?+it.m.spread*100:null;
     const prior=Math.min(smart,4)*0.4+(edge!=null?0.3*Math.max(-6,Math.min(6,edge)):0)-(spr!=null?0.4*Math.min(spr,8):0);
-    let score,mode;
-    if(cal){score=predK(cal,fkeys(f))+prior;mode='cal'}
+    const model=c.dir==='up'?calU:calD;let score,mode;
+    if(model){score=predK(model,fkeys(f))+prior;mode='cal'}
     else{
-      score=Math.min(c.d,12)/12*3.5+Math.min(w.size,5)/5*2+(net>0?Math.min(net,2000)/2000*1.5:0)+(c.hrs>=1&&c.hrs<=6?1:c.hrs>6&&c.hrs<=24?0.5:0)+(f.liq>50000?1:f.liq>5000?0.5:0)+prior*0.5;
+      score=Math.min(Math.abs(c.d),12)/12*3.5+Math.min(w.size,5)/5*2+(net>0?Math.min(net,2000)/2000*1.5:0)+(c.hrs>=1&&c.hrs<=6?1:c.hrs>6&&c.hrs<=24?0.5:0)+(f.liq>50000?1:f.liq>5000?0.5:0)+prior*0.5;
       score=Math.max(0,Math.min(10,score));mode='heur';
     }
     res.push({it,c,f,smart,edge,spr,score,mode});
   }
   const best=new Map();
-  for(const r of res){const k=r.it.evId,b=best.get(k);if(!b||r.score>b.score) best.set(k,r)}   // un singur semnal per meci (semnalele aceluiași meci sunt corelate)
+  for(const r of res){const k=r.it.evId,b=best.get(k);if(!b||r.score>b.score) best.set(k,r)}   // un singur semnal per meci
   S.exRes=[...best.values()].sort((a,b)=>b.score-a.score).slice(0,15);S.exAt=now;
-  // jurnal automat
-  const thrQ=cal?1.0:6;let added=0;
+  let added=0;
   for(const r of S.exRes){
+    const thrQ=r.mode==='cal'?COST+1:6;
     if(r.score<thrQ||added>=5) continue;
     if(S.jrn.some(e=>e.tok===r.it.id&&now-e.t<6*3600e3)) continue;
-    S.jrn.push({tok:r.it.id,cid:r.it.m.conditionId,evId:r.it.evId,ev:r.it.ev.title,label:r.it.label,t:now,p:r.it.p,start:r.c.st,score:r.score,mode:r.mode,d:r.c.d,buy:r.f.buy,net:r.f.net,smart:r.smart});
+    S.jrn.push({tok:r.it.id,cid:r.it.m.conditionId,evId:r.it.evId,ev:r.it.ev.title,label:r.it.label,t:now,p:r.it.p,start:r.c.st,score:r.score,mode:r.mode,dir:r.c.dir,d:r.c.d,buy:r.f.buy,net:r.f.net,smart:r.smart});
     added++;
   }
   if(added) jSave();
@@ -1253,7 +1272,7 @@ async function jrnResolve(){
   jSave();
 }
 function reasonsOf(r){
-  const a=[`salt +${r.c.d.toFixed(1)} pp în 30 min`];
+  const a=[r.c.dir==='dn'?`a scăzut ${r.c.d.toFixed(1)} pp în 30 min`:`salt +${r.c.d.toFixed(1)} pp în 30 min`];
   if(r.f.buy>0) a.push(`${r.f.buy} cumpărători diferiți în ultima oră`);
   if(r.f.net>0) a.push(`net cumpărat ${usd(r.f.net)}`);
   if(r.smart) a.push(`${r.smart} portofele din top țin poziția`);
@@ -1263,30 +1282,41 @@ function reasonsOf(r){
   if(r.f.liq) a.push(`volum total ${usd(r.f.liq)}`);
   return a;
 }
+const sg=v=>(v>=0?'+':'')+v.toFixed(1);
+function repHtml(rep){
+  const blk=(title,G)=>{
+    const row=(name,g)=>{
+      if(!g.n) return `<div class="meta">${name}: niciun caz</div>`;
+      const ex=g.m-G.ct.m,exs=2*Math.sqrt(g.se**2+G.ct.se**2),net=g.m-COST;
+      return `<div style="margin:3px 0"><b>${name}</b>: ${g.n} cazuri · CLV <b>${sg(g.m)} pp</b> (±${(2*g.se).toFixed(1)}) · după cost ${COST} pp: <b class="${net>=0?'up':'dn'}">${sg(net)}</b> · față de control ${sg(ex)} (±${exs.toFixed(1)})${Math.abs(ex)<exs?' <small>(nu se deosebește de control)</small>':''}</div>`;
+    };
+    return `<div style="margin-top:8px"><b>${title}</b>${row('Salt în sus: cumperi ce a urcat',G.up)}${row('Salt în jos: cumperi ce a scăzut',G.dn)}${row('Control (fără mișcare)',G.ct)}</div>`;
+  };
+  return `<div class="meta" style="margin-top:8px">${rep.nU} sărituri în sus, ${rep.nD} în jos, ${rep.nC} momente de control, din ultimele ${rep.days} de zile.</div>`+blk('Toate piețele',rep.all)+blk('Piețe cu volum total peste 50.000 $',rep.liq)+blk('Piețe sub 50.000 $',rep.thin)+
+  `<div class="meta" style="margin-top:8px">Cum citești: CLV = prețul de la începutul meciului minus prețul de la semnal. La piețe cu doi rezultate, săritura unuia e scăderea celuilalt, deci „în sus” și „în jos” sunt aproape oglinzi: dacă unul are −5 pp, celălalt are circa +5 pp înainte de cost. Revenirea poate fi reală, dar poate fi și un efect al spread-ului (prețul sare între cerere și ofertă). De aceea contează grupul de control și piețele cu volum mare: dacă efectul apare doar la piețe mici, probabil nu poate fi exploatat. Costul de ${COST} pp e o presupunere.</div>`;
+}
 function renderExpert(){
-  const cal=S.cal&&S.cal.n>=60?S.cal:null;
-  if(cal){
-    const skill=cal.corr>0.1&&cal.ntest>=30,cs=Object.entries(cal.coef).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,6);
-    $('excalr').innerHTML=`<div class="bx"><h4>Calibrare</h4>
-      <div>${cal.n} semnale istorice din ultimele ${cal.days} zile · calibrat ${new Date(cal.dt).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})}</div>
-      <div>Pe datele de test (ultimele ${cal.ntest}, nefolosite la învățare): corelație <b>${cal.corr.toFixed(2)}</b> · cele mai bune 1/3 din scoruri au avut CLV mediu <b>${cal.topY>=0?'+':''}${cal.topY.toFixed(1)} pp</b>, cele mai slabe 1/3 <b>${cal.botY>=0?'+':''}${cal.botY.toFixed(1)} pp</b>.</div>
-      <div class="meta">Verdict: <b>${skill?'există un indiciu slab de abilitate, dar trebuie confirmat în jurnal':'fără dovezi de abilitate pe datele de test; tratează scorul ca pe o simplă ordonare'}</b></div>
-      <div class="meta">Factori cu cel mai mare efect asupra CLV: ${cs.map(([k,v])=>`${esc(k.split(':')[1])} (${v>=0?'+':''}${v.toFixed(1)} pp)`).join(' · ')}</div></div>`;
-  }else $('excalr').innerHTML='<div class="bx"><h4>Calibrare</h4><div class="meta">Încă necalibrat: scorul de acum e euristic (ponderi alese de mine). Apasă „Auto-calibrează” ca sistemul să învețe din meciurile terminate.</div></div>';
+  const calU=S.cal&&S.cal.n>=60?S.cal:null,calD=S.calD&&S.calD.n>=60?S.calD:null;
+  const mdl=(name,c)=>{
+    if(!c) return `<div class="meta">${name}: fără model (prea puține semnale).</div>`;
+    const skill=c.corr>0.1&&c.ntest>=30,cs=Object.entries(c.coef).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);
+    return `<div style="margin-top:6px"><b>${name}</b>: ${c.n} semnale · test pe ultimele ${c.ntest}: corelație <b>${c.corr.toFixed(2)}</b>, cele mai bune 1/3 din scoruri <b>${sg(c.topY)} pp</b>, cele mai slabe 1/3 <b>${sg(c.botY)} pp</b> · <b>${skill?'indiciu slab de abilitate':'fără dovezi de abilitate'}</b><div class="meta">Factori mai importanți: ${cs.map(([k,v])=>`${esc(k.split(':')[1])} (${sg(v)} pp)`).join(' · ')}</div></div>`;
+  };
+  $('excalr').innerHTML=`<div class="bx"><h4>Calibrare și test de control</h4>`+
+    (S.rep?repHtml(S.rep)+mdl('Model pentru sărituri în sus',calU)+mdl('Model pentru scăderi',calD):'<div class="meta">Încă necalibrat: scorul de acum e euristic (ponderi alese de mine). Apasă „Auto-calibrează” ca sistemul să învețe din meciurile terminate și să compare cu un grup de control.</div>')+'</div>';
   const R=S.exRes||[];
   $('exlist').innerHTML=(R.length?R.map(r=>{
-    const it=r.it,sc=r.mode==='cal'?`CLV estimat <b class="${r.score>=0?'up':'dn'}">${r.score>=0?'+':''}${r.score.toFixed(1)} pp</b>`:`scor euristic <b>${r.score.toFixed(1)}/10</b> (necalibrat)`;
+    const it=r.it,sc=r.mode==='cal'?`CLV estimat (brut) <b class="${r.score>=0?'up':'dn'}">${sg(r.score)} pp</b>`:`scor euristic <b>${r.score.toFixed(1)}/10</b> (necalibrat)`;
     return `<div class="bx smk" data-ev="${it.evId}" data-tk="${it.id}"><h4>${esc(it.label)}</h4><div class="meta">${esc(it.ev.title)}</div><div>${sc} · preț <b>${(it.p*100).toFixed(0)}%</b> (cota ${odds(it.p)})</div><div class="meta">${reasonsOf(r).map(esc).join(' · ')}</div></div>`;
-  }).join(''):'<div class="bx"><div class="empty">Nicio selecție care să treacă de filtre acum. Sistemul caută doar rezultate care au urcat cu cel puțin 3 pp în 30 de minute, la meciuri neîncepute, din sportul și tipurile alese sus. Se refac la fiecare actualizare.</div></div>')+
-   (S.exAt?`<div class="meta">Actualizat ${new Date(S.exAt).toLocaleTimeString('ro-RO')} · un singur rezultat pe meci. Scorul e o ordonare a atenției, nu o predicție.</div>`:'');
-  // jurnal
+  }).join(''):'<div class="bx"><div class="empty">Nicio selecție care să treacă de filtre acum. Sistemul caută rezultate care s-au mișcat cu cel puțin 3 pp în 30 de minute, la meciuri neîncepute, din sportul și tipurile alese sus. Scăderile apar doar după o calibrare cu model valid. Se refac la fiecare actualizare.</div></div>')+
+   (S.exAt?`<div class="meta">Actualizat ${new Date(S.exAt).toLocaleTimeString('ro-RO')} · un singur rezultat pe meci. Scorul e o ordonare a atenției, nu o predicție. Intră în jurnal doar ce depășește costul presupus de ${COST} pp.</div>`:'');
   const J=S.jrn,cl=J.filter(e=>e.close!=null),clv=cl.map(e=>(e.close-e.p)*100),wn=J.filter(e=>e.won!=null),roi=wn.map(e=>(e.won?1/e.p:0)-1);
-  const bl=(arr2,fmtv)=>{if(arr2.length<2) return 'prea puține';const m=mean(arr2),se=sdv(arr2)/Math.sqrt(arr2.length);return `<b class="${m>=0?'up':'dn'}">${fmtv(m)}</b> (±${fmtv(2*se).replace('+','')})`};
+  const bl=(a2,f2)=>{if(a2.length<2) return 'prea puține';const m=mean(a2),se=sdv(a2)/Math.sqrt(a2.length);return `<b class="${m>=0?'up':'dn'}">${f2(m)}</b> (±${f2(2*se).replace('+','')})`};
   $('exjrn').innerHTML=`<div class="bx"><h4>Jurnal automat (${J.length} selecții)</h4>
-    <div>Cu preț de la start: <b>${cl.length}</b> · CLV mediu ${bl(clv,v=>(v>=0?'+':'')+v.toFixed(1)+' pp')}${cl.length?` · ${(clv.filter(x=>x>0).length/cl.length*100).toFixed(0)}% au urcat până la start`:''}</div>
+    <div>Cu preț de la start: <b>${cl.length}</b> · CLV mediu ${bl(clv,v=>sg(v)+' pp')}${cl.length?` · ${(clv.filter(x=>x>0).length/cl.length*100).toFixed(0)}% au urcat până la start`:''}</div>
     <div>Cu rezultat final: <b>${wn.length}</b> · randament mediu per 1 $ ${bl(roi,v=>(v>=0?'+':'')+(v*100).toFixed(1)+'%')}</div>
-    <div class="meta">CLV pozitiv înseamnă că prețul de la intrare a fost mai bun decât cel de la începutul meciului. E cel mai rapid semn de abilitate (are nevoie de aproximativ 30–50 de selecții). Rezultatul final e mult mai zgomotos. Jurnalul se completează doar cât timp pagina e deschisă.</div></div>`+
-    J.slice(-15).reverse().map(e=>`<div class="tx"><b>${esc(e.label)}</b> · ${esc(e.ev)}<br><small>${new Date(e.t).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · intrare ${(e.p*100).toFixed(0)}% · ${e.mode==='cal'?'CLV est. '+e.score.toFixed(1)+' pp':'scor '+e.score.toFixed(1)}${e.close!=null?` · la start ${(e.close*100).toFixed(0)}% (<b class="${e.close>=e.p?'up':'dn'}">${(e.close-e.p>=0?'+':'')+((e.close-e.p)*100).toFixed(1)} pp</b>)`:' · în așteptare'}${e.won!=null?` · ${e.won?'a câștigat':'a pierdut'}`:''}</small></div>`).join('');
+    <div class="meta">CLV pozitiv înseamnă că prețul de la intrare a fost mai bun decât cel de la începutul meciului (brut, fără cost). Are nevoie de aproximativ 30–50 de selecții. Rezultatul final e mult mai zgomotos. Jurnalul se completează doar cât timp pagina e deschisă.</div></div>`+
+    J.slice(-15).reverse().map(e=>`<div class="tx"><b>${esc(e.label)}</b>${e.dir==='dn'?' <small>(după scădere)</small>':''} · ${esc(e.ev)}<br><small>${new Date(e.t).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · intrare ${(e.p*100).toFixed(0)}% · ${e.mode==='cal'?'CLV est. '+e.score.toFixed(1)+' pp':'scor '+e.score.toFixed(1)}${e.close!=null?` · la start ${(e.close*100).toFixed(0)}% (<b class="${e.close>=e.p?'up':'dn'}">${sg((e.close-e.p)*100)} pp</b>)`:' · în așteptare'}${e.won!=null?` · ${e.won?'a câștigat':'a pierdut'}`:''}</small></div>`).join('');
 }
 $('exbtn').addEventListener('click',()=>{$('ex').hidden=false;document.body.style.overflow='hidden';renderExpert();$('exst').textContent='Se actualizează…';expertRun(false).then(()=>{$('exst').textContent=''}).catch(e=>{$('exst').textContent='Eroare: '+e.message})});
 $('exx').addEventListener('click',()=>{$('ex').hidden=true;anyOverlay()});
