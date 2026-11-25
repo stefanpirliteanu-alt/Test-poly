@@ -146,7 +146,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
     <div class="top"><button id="odx" aria-label="Închide">✕</button><div><h2>Scăderi de cotă</h2><div class="meta">Caută rezultate a căror cotă a scăzut brusc (de exemplu de la 2,50 la 1,60) la un anumit tip de pariu și arată câți bani s-au pus acolo.</div></div></div>
     <div class="bar" style="padding:6px 0">
       <label>Sport <select id="odsp"></select></label>
-      <label>Tip de pariu <select id="odt"><option value="ml">Moneyline</option><option value="spread">Handicap</option><option value="total">Total (peste/sub)</option><option value="btts">Ambele marchează</option><option value="half">Repriză / sfert</option><option value="score">Scor exact</option><option value="prop">Prop-uri</option><option value="out">Câștigător final</option></select></label>
+      <label>Tip de pariu <select id="odt"><option value="ml">Moneyline</option><option value="spread">Handicap</option><option value="total">Total (peste/sub)</option><option value="btts">Ambele marchează</option><option value="dc">Șansă dublă</option><option value="half">Repriză / sfert / set</option><option value="score">Scor exact</option><option value="corners">Cornere</option><option value="cards">Cartonașe</option><option value="player">Jucători</option><option value="prop">Altele</option><option value="out">Câștigător final</option></select></label>
       <label>Compar cu <select id="odw"><option value="30m">acum 30 min</option><option value="1h">acum 1 oră</option><option value="6h" selected>acum 6 ore</option><option value="24h">acum 24 de ore</option><option value="max">cota de la deschidere</option></select></label>
       <label>Cota scade cu cel puțin <select id="odp"><option value="15">15%</option><option value="25" selected>25%</option><option value="35">35%</option><option value="50">50%</option></select></label>
       <label>Meciuri <select id="odph"><option value="pre">neîncepute</option><option value="live">live</option><option value="all" selected>toate</option></select></label>
@@ -206,10 +206,10 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 <script>
 const G='https://gamma-api.polymarket.com', C='https://clob.polymarket.com', D='https://data-api.polymarket.com';
 const $=id=>document.getElementById(id);
-const TYPES=[['ml','Moneyline'],['out','Câștigător final'],['spread','Handicap'],['total','Total (peste/sub)'],['btts','Ambele marchează'],['half','Repriză / sfert'],['score','Scor exact'],['prop','Prop-uri']];
+const TYPES=[['ml','Moneyline'],['out','Câștigător final'],['dc','Șansă dublă'],['spread','Handicap'],['total','Total (peste/sub)'],['btts','Ambele marchează'],['half','Repriză / sfert / set'],['score','Scor exact'],['corners','Cornere'],['cards','Cartonașe'],['player','Jucători'],['prop','Altele']];
 const RANGES={'1h':{n:'1h',c:['1h',1]},'6h':{n:'6h',c:['6h',5]},'1d':{n:'1 zi',c:['1d',15]},'1w':{n:'1 săpt',c:['1w',60]},'max':{n:'Max',c:['max',360]}};
 const COL=['#4fd18b','#ff6b57','#e9c46a','#6ab0ff','#c792ea','#ff9f6b'];
-const S={items:new Map(),byEv:new Map(),sports:new Map(),sport:'',hist:new Map(),alerts:[],cool:{},seeded:new Set(),types:new Set(['ml']),timer:null,det:null,tok:0,mk:new Map(),trades:[],seenTr:new Set(),trFirst:true,trErr:''};
+const S={items:new Map(),byEv:new Map(),sports:new Map(),sport:'',hist:new Map(),alerts:[],cool:{},seeded:new Set(),types:new Set(TYPES.map(t=>t[0])),timer:null,det:null,tok:0,mk:new Map(),trades:[],seenTr:new Set(),trFirst:true,trErr:''};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const arr=v=>{try{return typeof v==='string'?JSON.parse(v):(v||[])}catch{return[]}};
 const isLive=ev=>ev.live===true||(!ev.ended&&ev.startTime&&Date.now()>new Date(ev.startTime)&&Date.now()-new Date(ev.startTime)<4*3600e3);
@@ -232,30 +232,41 @@ async function jget(u,o){
 
 /* ---------- clasificare ---------- */
 function mtype(m,ev){
-  const t=(m.sportsMarketType||'').toLowerCase(),q=((m.question||'')+' '+(m.groupItemTitle||'')).toLowerCase();
-  if(/exact_score|correct_score/.test(t)||/exact score|correct score/.test(q+' '+((ev&&ev.title)||'').toLowerCase())) return 'score';
-  if(t){
-    if(/half|quarter|period|inning/.test(t)) return 'half';
-    if(t==='moneyline'||t==='child_moneyline') return 'ml';
-    if(t.includes('spread')) return 'spread';
-    if(t.includes('total')) return 'total';
-    if(t.includes('both_teams')||t==='btts') return 'btts';
-    return 'prop';
-  }
-  if(/1st half|first half|2nd half|quarter|1h |2h /.test(q)) return 'half';
-  if(/spread|handicap/.test(q)) return 'spread';
-  if(/o\/u|over|under|total/.test(q)) return 'total';
-  if(/both teams/.test(q)) return 'btts';
-  if(/first |exact|score|mvp|player|points|goals|assists|rebounds|yards|strikeouts|touchdown|win by/.test(q)) return 'prop';
-  return 'ml';
+  const t=String(m.sportsMarketType||'').toLowerCase(),q=((m.question||'')+' '+(m.groupItemTitle||'')).toLowerCase(),et=String((ev&&ev.title)||'').toLowerCase(),tq=t+' '+q;
+  if(/exact_score|correct_score/.test(t)||/exact score|correct score/.test(q+' '+et)) return 'score';
+  if(/double_chance|double chance|draw_no_bet|draw no bet/.test(tq)) return 'dc';
+  if(/corner/.test(tq+' '+et)) return 'corners';
+  if(/\bcards?\b|booking|yellow|red card/.test(tq)) return 'cards';
+  if(/both_teams|btts/.test(t)||/both teams/.test(q)) return 'btts';
+  if(/goalscorer|scorer|anytime|first_td|player|assist|rebound|passing|rushing|receiving|strikeout|home_run|shots_on|saves/.test(t)||/^(points|rebounds|assists|threes|steals|blocks|touchdowns?|hits|shots|goals)$/.test(t)||/goalscorer|anytime scorer|to score|player props|rebounds|assists|strikeouts|home runs|passing yards|rushing yards|receiving yards/.test(q+' '+et)) return 'player';
+  if(/\b(map|game|set|round) ?\d\b/.test(q)) return 'half';
+  if(/half|quarter|period|inning|1h|2h/.test(t)||/(1st|first|2nd|second) (half|quarter|period)|halftime|half-time/.test(q)) return 'half';
+  if(/both_teams|btts/.test(t)||/both teams/.test(q)) return 'btts';
+  if(t.includes('spread')||/spread|handicap/.test(q)) return 'spread';
+  if(t.includes('total')||/o\/u|over\/under|over under|total (goals|points|runs|games|sets|maps|rounds)/.test(q)) return 'total';
+  if(t==='moneyline'||t==='child_moneyline') return 'ml';
+  if(t) return 'prop';
+  if(/\bvs\.?\b/.test(et)&&!/more markets|exact score|player|props/.test(et)) return 'ml';
+  return 'prop';
 }
 const fnum=v=>String(v).replace('.',',');
-function nice(type,o,line,yn){
+function ouLabel(L,o,yn,unit,scope){
+  const mm=L.match(/(\d+(?:\.\d+)?)\s*$/)||L.match(/(\d+(?:\.\d+)?)/);
+  if(!mm) return null;
+  const w=/\bunder\b|\bsub\b/i.test(yn?L:String(o))?'Sub':'Peste';
+  return {label:`${w} ${fnum(mm[1])} ${unit} ${scope}`,short:`${w} ${fnum(mm[1])}`};
+}
+function nice(type,o,line,yn,c){
+  c=String(c||'').replace(/_/g,' ');
   const L=String(line||'').trim();
   if(type==='ml'||type==='out'){
     const name=(yn?L:String(o)).replace(/^will\s+/i,'').replace(/\s+win\b.*$/i,'').trim();
     if(/^draw/i.test(name)) return {label:'Egalitate (meciul se termină la egalitate)',short:'Egalitate'};
     return {label:type==='out'?`${name} câștigă competiția`:`${name} câștigă meciul`,short:name};
+  }
+  if(type==='dc'){
+    const t=(yn?L:String(o)).replace(/^will\s+/i,'').trim(),tx=t.replace(/\bor\b/ig,'sau').replace(/\bdraw\b/ig,'egalitate');
+    return /draw no bet|draw_no_bet/.test(c)?{label:`Egalitate anulează pariul: ${tx} (dacă se termină egal, miza se returnează)`,short:tx}:{label:`Șansă dublă: ${tx}`,short:tx};
   }
   if(type==='spread'){
     const mm=L.match(/^(.*?)\s*\(\s*([+-]?\d+(?:\.\d+)?)\s*\)\s*$/)||L.match(/^(.*?)\s*([+-]\d+(?:\.\d+)?)\s*$/);
@@ -268,28 +279,63 @@ function nice(type,o,line,yn){
       return {label:`Handicap ${hh>0?'+':'−'}${fnum(ab)}: ${mine} ${txt}`,short:`${mine} ${hh>0?'+':'−'}${fnum(ab)}`};
     }
   }
-  if(type==='total'){
-    const mm=L.match(/(\d+(?:\.\d+)?)\s*$/)||L.match(/(\d+(?:\.\d+)?)/);
-    if(mm){const under=/under/i.test(yn?L:String(o));const w=under?'Sub':'Peste';
-      return {label:`${w} ${fnum(mm[1])} goluri/puncte în total (tot meciul)`,short:`${w} ${fnum(mm[1])}`}}
-  }
+  if(type==='total'){const r=ouLabel(L,o,yn,'goluri/puncte','în total (tot meciul)');if(r) return r}
+  if(type==='corners'){const r=ouLabel(L,o,yn,'cornere','în total');if(r) return r}
+  if(type==='cards'){const r=ouLabel(L,o,yn,'cartonașe','în total');if(r) return r}
   if(type==='btts'){const no=/^no$/i.test(String(o));return {label:`Ambele echipe marchează: ${no?'NU':'DA'}`,short:no?'Nu marchează ambele':'Marchează ambele'}}
   if(type==='score'){
     const txt=(yn?L:String(o)).replace(/^(exact|correct) score:?\s*/i,'').trim(),sc=txt.match(/(\d+)\s*[-–]\s*(\d+)/);
     return {label:`Scor final exact: ${txt}`,short:sc?`${sc[1]}-${sc[2]}`:txt};
   }
+  if(type==='half'){
+    const mp=c.match(/\b(map|game|set|round) ?(\d)\b/);
+    const hn=mp?({map:'Harta',game:'Jocul',set:'Setul',round:'Runda'}[mp[1]]+' '+mp[2]):/(2nd|second) half|\b2h\b/.test(c)?'A doua repriză':/(1st|first) half|\b1h\b|halftime|half-time/.test(c)?'Prima repriză':/quarter|\bq[1-4]\b/.test(c)?'Sfert':/period|inning/.test(c)?'Perioadă':'Parțial';
+    const sub=/spread|handicap/.test(c)?'spread':/o\/u|\bover\b|\bunder\b|total/.test(c)?'total':'ml';
+    const inner=nice(sub,o,L.replace(/^(map|game|set|round)\s?\d\s*(winner)?:?\s*/i,''),yn,'');
+    return {label:`${hn}: ${inner.label.replace('câștigă meciul','câștigă').replace(' (meciul se termină la egalitate)',' (egalitate)').replace(' în total (tot meciul)',' în total')}`,short:`${hn} · ${inner.short}`};
+  }
+  if(type==='player'){
+    const nm=(yn?L:`${o}: ${L}`);
+    return {label:/scorer|to score/.test(c)?`Marcator: ${nm}`:`Jucător: ${nm}`,short:nm};
+  }
   const base=yn?L:`${o}: ${L}`;
-  return {label:type==='half'?`Parțial: ${base}`:base,short:base};
+  return {label:base,short:base};
 }
-const evSports=ev=>{const t=(ev.tags||[]).map(x=>x.label).filter(l=>l&&!/^(sports|games|all|hide from new)$/i.test(l));return t.length?[...new Set(t)]:['Altele']};
+/* sporturi: doar categorii mari, fără ligi sau competiții */
+const SPORT_RULES=[
+  ['Esports',/\b(esports?|counter ?strike|cs2|csgo|cs:go|dota ?2?|league of legends|lol|valorant|call of duty|overwatch|rocket league|starcraft|honor of kings|mobile legends|rainbow six|apex legends|fortnite)\b/],
+  ['Fotbal american',/\b(nfl|ncaaf|cfb|college football|american football|super bowl|cfl|ufl)\b/],
+  ['Tenis de masă',/\b(table tennis|ping pong)\b/],
+  ['Baschet',/\b(nba|wnba|ncaab|cbb|college basketball|basketball|euroleague|eurocup|fiba|march madness|nbl|acb)\b/],
+  ['Baseball',/\b(mlb|baseball|npb|kbo|world series)\b/],
+  ['Hochei',/\b(nhl|hockey|khl|ahl|shl|stanley cup)\b/],
+  ['Tenis',/\b(tennis|atp|wta|grand slam|wimbledon|roland garros|french open|australian open|davis cup|billie jean)\b/],
+  ['MMA / Box',/\b(ufc|mma|boxing|bellator|pfl|one championship)\b/],
+  ['Golf',/\b(golf|pga|lpga|dp world|liv golf|ryder cup|presidents cup)\b/],
+  ['Motorsport',/\b(formula ?1|f1|nascar|motogp|indycar|grand prix|rally|wrc|formula e)\b/],
+  ['Cricket',/\b(cricket|ipl|bbl|t20|psl|cpl|ashes)\b/],
+  ['Rugby',/\b(rugby|six nations|super rugby|nrl)\b/],
+  ['Volei',/\b(volleyball|volei)\b/],
+  ['Handbal',/\b(handball|handbal)\b/],
+  ['Darts / Snooker',/\b(darts|snooker|billiards)\b/],
+  ['Fotbal',/\b(soccer|football|epl|premier league|la ?liga|serie a|bundesliga|ligue ?1|champions league|europa league|conference league|uefa|mls|fifa|world cup|copa|eredivisie|primeira liga|liga mx|a league|super lig|scottish premiership|efl|fa cup|dfb|coppa|ucl|uel|j ?league|k ?league|concacaf|conmebol|libertadores|allsvenskan|eliteserien|superliga|ekstraklasa|liga portugal|saudi pro league|nations league|friendly)\b/]
+];
+const SPORT_EN={'Fotbal':'soccer','Baschet':'basketball','Fotbal american':'nfl american football','Baseball':'baseball','Hochei':'hockey','Tenis':'tennis','MMA / Box':'mma boxing','Cricket':'cricket','Rugby':'rugby'};
+const _sc=new Map();
+function evSport(ev){
+  if(_sc.has(ev.id)) return _sc.get(ev.id);
+  const tg=(ev.tags||[]).map(x=>`${x.label||''} ${x.slug||''}`).join(' ').toLowerCase().replace(/-/g,' '),tt=`${ev.slug||''} ${ev.title||''}`.toLowerCase().replace(/-/g,' ');
+  let r='Altele';
+  outer:for(const txt of [tg,tt]) for(const [n,re] of SPORT_RULES) if(re.test(txt)){r=n;break outer}
+  _sc.set(ev.id,r);return r;
+}
+const evSports=ev=>[evSport(ev)];
+const evRawTags=ev=>{const t=(ev.tags||[]).map(x=>x.label).filter(l=>l&&!/^(sports|games|all|hide from new)$/i.test(l));return t.length?[...new Set(t)]:[]};
 
 /* ---------- Gamma ---------- */
 async function loadGamma(){
-  let evs=[];
-  for(const off of [0,200]){
-    try{evs=evs.concat(await jget(`${G}/events?tag_id=1&active=true&closed=false&limit=200&offset=${off}&order=volume24hr&ascending=false`))}
-    catch(e){if(off===0) throw e}
-  }
+  const pages=await Promise.all([0,200,400].map(off=>jget(`${G}/events?tag_id=1&active=true&closed=false&limit=200&offset=${off}&order=volume24hr&ascending=false`).catch(e=>{if(off===0) throw e;return[]})));
+  const evs=[].concat(...pages);
   const seen=new Set(),doneEv=new Set(),sports=new Map();
   S.byEv=new Map();
   for(const ev of evs){
@@ -307,7 +353,7 @@ async function loadGamma(){
         if(yn&&i===1) return;
         const id=toks[i]; if(!id) return;
         seen.add(id);
-        const nm=nice(type,o,line,yn);
+        const nm=nice(type,o,line,yn,`${m.question||''} ${m.groupItemTitle||''} ${m.sportsMarketType||''} ${ev.title||''}`.toLowerCase());
         const it={id,ev,evId:ev.id,mid:m.id,m,type,tags,o,label:nm.label,short:nm.short,
           p:parseFloat(prices[i]),vol:+m.volume24hr||0};
         S.items.set(id,it); list.push(it);
@@ -445,8 +491,8 @@ function spark(id){
 function renderSports(){
   const top=[...S.sports.entries()].sort((a,b)=>b[1]-a[1]);
   if(!top.length){$('sports').innerHTML='';return}
-  if(!S.sport||!S.sports.has(S.sport)) S.sport=top[0][0];
-  const head=top.slice(0,8).map(x=>x[0]),rest=top.slice(8);
+  if(!S.sport||!S.sports.has(S.sport)) S.sport=S.sports.has('Fotbal')?'Fotbal':top[0][0];
+  const head=top.map(x=>x[0]),rest=[];
   const chip=n=>`<button class="chip sp ${n===S.sport?'on':''}" data-s="${esc(n)}">${esc(n)}<i>${S.sports.get(n)}</i></button>`;
   let h=head.map(chip).join('');
   if(!head.includes(S.sport)) h+=chip(S.sport);
@@ -455,7 +501,8 @@ function renderSports(){
 }
 function renderChips(){
   const cnt={};for(const it of S.items.values()) if(!S.sports.size||it.tags.includes(S.sport)) cnt[it.type]=(cnt[it.type]||0)+1;
-  $('chips').innerHTML=TYPES.map(([k,n])=>`<button class="chip ${S.types.has(k)?'on':''}" data-k="${k}">${n}<i>${cnt[k]||0}</i></button>`).join('');
+  const all=S.types.size===TYPES.length,n=Object.values(cnt).reduce((x,y)=>x+y,0);
+  $('chips').innerHTML=`<button class="chip ${all?'on':''}" data-k="__all">Toate<i>${n}</i></button>`+TYPES.filter(([k])=>cnt[k]||S.types.has(k)&&!all).map(([k,nm])=>`<button class="chip ${!all&&S.types.has(k)?'on':''}" data-k="${k}">${nm}<i>${cnt[k]||0}</i></button>`).join('');
 }
 function render(){
   const now=Date.now(),win=+$('win').value,thr=+$('thr').value||5;
@@ -475,16 +522,17 @@ function render(){
     g.rows.push(it); groups.set(it.evId,g);
   }
   $('fcnt').textContent=`(${kept} din ${tot} selecții trec de filtre)`;
-  const gs=[...groups.values()].sort((a,b)=>sort==='mov'?b.mov-a.mov:b.vol-a.vol).slice(0,60);
+  const gs=[...groups.values()].sort((a,b)=>sort==='mov'?b.mov-a.mov:b.vol-a.vol).slice(0,150);
   $('list').innerHTML=gs.length?gs.map(g=>{
     const t=g.ev.startTime||g.ev.endDate||g.ev.startDate;
     const dt=t?new Date(t).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'}):'';
-    const top=g.rows.slice().sort((a,b)=>b.p-a.p);
+    const mlr=g.rows.filter(x=>x.type==='ml'||x.type==='out'),top=(mlr.length?mlr:g.rows).slice().sort((a,b)=>b.p-a.p);
+    const tc={};g.rows.forEach(x=>tc[x.type]=(tc[x.type]||0)+1);const tcs=TYPES.filter(t=>tc[t[0]]).map(t=>`${t[1]} ${tc[t[0]]}`).join(' · ');
     const lead=top.slice(0,3).map(it=>`${esc(it.short||it.label)} <b>${(it.p*100).toFixed(0)}%</b>`).join(' · ');
     const mv=g.rows.reduce((a,b)=>Math.abs(b.d||0)>Math.abs(a.d||0)?b:a,g.rows[0]);
     const big=mv&&mv.d!==null&&Math.abs(mv.d)>=thr;
     const mvh=big?`<div><span class="bd ${mv.d>0?'bu':'bd2'}">MIȘCARE BRUSCĂ ${mv.d>0?'▲':'▼'} ${esc(mv.short||mv.label)} ${fmt(mv.d)} pp în ${win} min</span></div>`:'';
-    return `<div class="ev" data-ev="${g.ev.id}"><h3>${esc(g.ev.title)}</h3><div class="meta">${isLive(g.ev)?'<b style="color:var(--dn)">LIVE</b> · ':''}${esc(dt)} · vol 24h $${Math.round(g.vol).toLocaleString('ro-RO')}</div><div class="lead">${lead}</div>${mvh}<div class="meta" style="margin:6px 0 0">${g.rows.length} predicții · apasă pentru detalii</div></div>`;
+    return `<div class="ev" data-ev="${g.ev.id}"><h3>${esc(g.ev.title)}</h3><div class="meta">${isLive(g.ev)?'<b style="color:var(--dn)">LIVE</b> · ':''}${esc(dt)} · vol 24h $${Math.round(g.vol).toLocaleString('ro-RO')}</div><div class="lead">${lead}</div>${mvh}<div class="meta" style="margin:6px 0 0">${g.rows.length} predicții: ${tcs} · apasă pentru detalii</div></div>`;
   }).join(''):'<div class="empty">Nimic de afișat pentru sportul și tipurile alese.</div>';
   $('alerts').innerHTML=S.alerts.length?S.alerts.map((a,i)=>`<div class="al ${a.d>0?'u':''}" data-a="${i}"><b>${a.d>0?'▲':'▼'} ${esc(a.label)} ${a.d>0?'+':''}${a.d.toFixed(1)} pp</b>${esc(a.ev)}<br><small>${esc(tname(a.type))} · ${a.from.toFixed(1)}% → ${a.to.toFixed(1)}% · ${new Date(a.t).toLocaleTimeString('ro-RO')}</small></div>`).join(''):'<div class="empty">Nicio alertă încă. Se aplică pe sportul ales.</div>';
   renderWhales();
@@ -514,7 +562,7 @@ function closeDetail(){S.det=null;$('sheet').hidden=true;document.body.style.ove
 function renderRng(){
   $('rng').innerHTML=Object.entries(RANGES).map(([k,v])=>`<button class="chip ${S.det.range===k?'on':''}" data-r="${k}">${v.n}</button>`).join('');
 }
-const EXPL={ml:'Cine câștigă meciul (sau dacă se termină la egalitate)',out:'Cine câștigă competiția sau turneul',spread:'Handicap: se adaugă sau se scade o diferență de goluri/puncte. „−1,5” = echipa trebuie să câștige cu cel puțin 2; „+1,5” = poate pierde la maximum 1.',total:'Total: peste sau sub o valoare a golurilor/punctelor din tot meciul',btts:'Marchează gol ambele echipe',half:'Pariuri doar pe o repriză sau un sfert',score:'Scorul final exact al meciului',prop:'Pariuri speciale (jucători, evenimente etc.)'};
+const EXPL={ml:'Cine câștigă meciul sau dacă se termină la egalitate',out:'Cine câștigă competiția sau turneul',dc:'Șansă dublă: acoperi două din cele trei rezultate (de exemplu „echipa A sau egal”). La „egalitate anulează pariul”, dacă se termină egal miza se returnează.',spread:'Handicap: se adaugă sau se scade o diferență de goluri/puncte. „−1,5” = echipa trebuie să câștige cu cel puțin 2; „+1,5” = poate pierde la maximum 1.',total:'Total: peste sau sub o valoare a golurilor/punctelor din tot meciul',btts:'Marchează gol ambele echipe',half:'Pariuri doar pe o repriză, un sfert, o hartă sau un set',score:'Scorul final exact al meciului',corners:'Pariuri pe numărul de cornere',cards:'Pariuri pe numărul de cartonașe',player:'Pariuri pe jucători (marcatori, puncte, assist-uri etc.)',prop:'Alte pariuri speciale care nu intră în categoriile de mai sus'};
 const odds=p=>p>0.005?(1/p).toFixed(2):'–';
 const usd=n=>'$'+Math.round(n).toLocaleString('ro-RO');
 const fmt=v=>(v>0?'+':'')+v.toFixed(1);
@@ -782,9 +830,9 @@ async function tick(){
 
 /* ---------- setări + evenimente ---------- */
 const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn','odt','odw','odp','odph','odm','odsr','odauto'];
-function save(){try{const c={types:[...S.types],sport:S.sport};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg2',JSON.stringify(c))}catch(e){}}
+function save(){try{const c={types:[...S.types],sport:S.sport,v:3};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg2',JSON.stringify(c))}catch(e){}}
 try{const c=JSON.parse(localStorage.getItem('cfg2')||'{}');
-  if(c.types&&c.types.length) S.types=new Set(c.types);
+  if(c.types&&c.types.length&&c.v>=3) S.types=new Set(c.types);
   if(c.sport) S.sport=c.sport;
   IDS.forEach(i=>{if(c[i]!==undefined){if($(i).type==='checkbox')$(i).checked=c[i];else $(i).value=c[i]}})}catch(e){}
 
@@ -793,8 +841,10 @@ $('sports').addEventListener('click',e=>{const b=e.target.closest('.chip');if(b)
 $('sports').addEventListener('change',e=>{if(e.target.id==='more')pickSport(e.target.value)});
 $('chips').addEventListener('click',e=>{
   const b=e.target.closest('.chip'); if(!b) return;
-  const k=b.dataset.k; S.types.has(k)?S.types.delete(k):S.types.add(k);
-  if(!S.types.size) S.types.add('ml');
+  const k=b.dataset.k,ALL=TYPES.map(t=>t[0]);
+  if(k==='__all') S.types=new Set(ALL);
+  else if(S.types.size===ALL.length) S.types=new Set([k]);            // din „Toate” ajungi direct la tipul ales
+  else{S.types.has(k)?S.types.delete(k):S.types.add(k);if(!S.types.size) S.types=new Set(ALL)}
   save(); renderChips(); render(); tick();
 });
 $('list').addEventListener('click',e=>{
@@ -830,7 +880,7 @@ async function compareOdds(){
   if(!j){
     out.innerHTML='<div class="empty">Caut meciul la casele de pariuri…</div>';
     try{
-      const qs=new URLSearchParams({a:names[0],b:names[1],start:ev.startTime||'',tags:evSports(ev).join('|')});
+      const qs=new URLSearchParams({a:names[0],b:names[1],start:ev.startTime||'',tags:evRawTags(ev).concat([SPORT_EN[evSport(ev)]||'']).join('|')});
       const r=await fetch(`${base}/odds/match?${qs}`,{headers:{'x-odds-key':key}});
       j=await r.json();
       if(j.found){try{localStorage.setItem(ck,JSON.stringify({t:Date.now(),j}))}catch(e){}}
@@ -1226,7 +1276,7 @@ function edgeFor(it){
 async function expertRun(silent){
   const now=Date.now(),calU=S.cal&&S.cal.n>=60?S.cal:null,calD=S.calD&&S.calD.n>=60?S.calD:null;let cand=[];
   for(const it of cur()){
-    if(!passF(it,now)||isLive(it.ev)) continue;
+    if(it.type!=='ml'||!passF(it,now)||isLive(it.ev)) continue;
     const d=delta(it.id,30,now); if(d===null||Math.abs(d)<3||it.p<0.03||it.p>0.97) continue;
     const dir=d>0?'up':'dn'; if(dir==='dn'&&!calD) continue;
     const st=Date.parse(it.ev.startTime||it.m.gameStartTime||''); if(!st) continue;
@@ -1358,11 +1408,11 @@ function oddsSpark(seg){
   return `<svg width="${w}" height="${ht}" viewBox="0 0 ${w} ${ht}" style="display:inline-block;vertical-align:middle;margin-left:8px"><polyline fill="none" stroke="#4fd18b" stroke-width="1.6" points="${pts}"/></svg>`;
 }
 function odFillSports(){
-  const sel=$('odsp'),saved=(()=>{try{return localStorage.getItem('odsp')}catch(e){return null}})(),cur0=sel.value||saved||(S.sports.has('Soccer')?'Soccer':S.sport);
+  const sel=$('odsp'),saved=(()=>{try{return localStorage.getItem('odsp')}catch(e){return null}})(),cur0=sel.value||saved||(S.sports.has('Fotbal')?'Fotbal':S.sport);
   const names=[...S.sports.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
   const h=names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
   if(sel._h!==h){sel.innerHTML=h;sel._h=h}
-  if(names.includes(cur0)) sel.value=cur0; else if(names.length) sel.value=names.includes('Soccer')?'Soccer':names[0];
+  if(names.includes(cur0)) sel.value=cur0; else if(names.length) sel.value=names.includes('Fotbal')?'Fotbal':names[0];
 }
 async function runOdds(auto){
   if(S.odBusy) return; S.odBusy=true;
