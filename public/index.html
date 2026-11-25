@@ -104,6 +104,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
     <label>Spread ≤ <input id="fspr" type="number" min="0" max="100" value="100"> pp</label>
     <label>Preț între <input id="fpmin" type="number" min="0" max="100" value="0">% și <input id="fpmax" type="number" min="0" max="100" value="100">%</label>
     <label>Începe în <select id="fstart"><option value="0">oricând</option><option value="3">3 ore</option><option value="6">6 ore</option><option value="12">12 ore</option><option value="24">24 de ore</option><option value="48">48 de ore</option></select></label>
+    <label>Pariuri mari: preț între <input id="bpmin" type="number" min="0" max="100" value="3">% și <input id="bpmax" type="number" min="0" max="100" value="90">%</label>
     <label><input id="fbot" type="checkbox"> ascunde boți (portofele cu peste <input id="fbotn" type="number" min="100" value="3000"> piețe)</label>
   </div>
 </details>
@@ -285,6 +286,7 @@ function nice(type,o,line,yn,c){
   if(type==='btts'){const no=/^no$/i.test(String(o));return {label:`Ambele echipe marchează: ${no?'NU':'DA'}`,short:no?'Nu marchează ambele':'Marchează ambele'}}
   if(type==='score'){
     const txt=(yn?L:String(o)).replace(/^(exact|correct) score:?\s*/i,'').trim(),sc=txt.match(/(\d+)\s*[-–]\s*(\d+)/);
+    if(/any other/i.test(txt)) return {label:'Scor final exact: oricare alt scor decât cele listate (de exemplu un scor foarte mare)',short:'Alt scor'};
     return {label:`Scor final exact: ${txt}`,short:sc?`${sc[1]}-${sc[2]}`:txt};
   }
   if(type==='half'){
@@ -330,6 +332,15 @@ function evSport(ev){
   _sc.set(ev.id,r);return r;
 }
 const evSports=ev=>[evSport(ev)];
+function fullLabel(mk,outcome){
+  const list=S.byEv.get(mk.ev.id)||[],cid=mk.m.conditionId;
+  if(mk.yn){
+    const y=list.find(x=>x.m.conditionId===cid),base=y?y.label:mk.line;
+    return (/^no$/i.test(outcome)?'NU: ':'DA: ')+base;
+  }
+  const it=list.find(x=>x.m.conditionId===cid&&String(x.o).toLowerCase()===String(outcome).toLowerCase());
+  return it?it.label:outcome;
+}
 const evRawTags=ev=>{const t=(ev.tags||[]).map(x=>x.label).filter(l=>l&&!/^(sports|games|all|hide from new)$/i.test(l));return t.length?[...new Set(t)]:[]};
 
 /* ---------- Gamma ---------- */
@@ -445,13 +456,14 @@ async function loadTrades(){
     const cash=t.size*t.price; if(!(cash>=minv)) continue;
     const key=t.hash+'|'+t.outcome+'|'+t.size; if(S.seenTr.has(key)) continue; S.seenTr.add(key);
     const tr={t:t.ts,evId:mk.ev.id,ev:mk.ev.title,tags:evSports(mk.ev),type:mk.type,side:t.side,
-      label:mk.yn?`${t.outcome} · ${mk.line}`:t.outcome,cash,price:t.price,live:isLive(mk.ev),w:t.w,who:t.who};
+      label:fullLabel(mk,t.outcome),yn:mk.yn,out:t.outcome,cash,price:t.price,live:isLive(mk.ev),w:t.w,who:t.who};
     S.trades.push(tr);
     if(!first){try{new Notification(`${t.side==='BUY'?'▲':'▼'} $${Math.round(cash)} · ${tr.label}`,{body:tr.ev})}catch(e){}}
   }
   S.trades.sort((a,b)=>b.t-a.t); S.trades=S.trades.slice(0,200);
 }
-const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small>${x.w?`<br><small><a href="#" class="wlink" data-wa="${x.w}" data-wn="${esc(x.who||'')}">${esc(x.who||short(x.w))}</a></small><br>${profHtml(x.w)}`:''}</div>`;
+const bigPriceOk=x=>x.price*100>=(+$('bpmin').value||0)&&x.price*100<=(+$('bpmax').value||100);
+const trHtml=(x,ev)=>`<div class="al ${x.side==='BUY'?'u':''}" data-w="${x.evId}"><b>${x.side==='BUY'?'▲ cumpărat':'▼ vândut'} $${Math.round(x.cash).toLocaleString('ro-RO')} · ${esc(x.label)}</b>${ev?esc(x.ev)+'<br>':''}${x.yn?`<small>${/^no$/i.test(x.out)?'NU = pariază că NU se întâmplă':'DA = pariază că se întâmplă'}</small><br>`:''}<small>${x.live?'LIVE · ':''}${esc(tname(x.type))} la ${(x.price*100).toFixed(0)}% · ${new Date(x.t).toLocaleTimeString('ro-RO')}</small>${x.w?`<br><small><a href="#" class="wlink" data-wa="${x.w}" data-wn="${esc(x.who||'')}">${esc(x.who||short(x.w))}</a></small><br>${profHtml(x.w)}`:''}</div>`;
 function passF(it,now){
   const g=id=>+$(id).value;
   if(it.vol<g('fvol')) return false;
@@ -474,7 +486,7 @@ const setPreset=v=>{
 };
 function renderWhales(){
   const minv=+$('bigv').value||2000;
-  const cand=S.trades.filter(x=>x.cash>=minv&&(!S.sports.size||x.tags.includes(S.sport)));
+  const cand=S.trades.filter(x=>x.cash>=minv&&bigPriceOk(x)&&(!S.sports.size||x.tags.includes(S.sport)));
   if($('fbot').checked) cand.slice(0,40).forEach(x=>x.w&&wantProf(x.w));
   const l=cand.filter(x=>!isBot(x.w)).slice(0,30);
   $('whales').innerHTML=l.length?l.map(x=>trHtml(x,true)).join(''):`<div class="empty">${S.trErr?'Indisponibil: '+esc(S.trErr):'Niciun pariu mare recent în sportul ales.'}</div>`;
@@ -735,7 +747,7 @@ function renderDetRows(){
   if(dd.agg) h+=h?`<div class="meta" style="margin-top:12px">${hid} predicții fără nicio cumpărare sau retragere sunt ascunse.</div>`:'<div class="empty">Nu am găsit nicio cumpărare sau retragere în tranzacțiile recente ale acestui meci.</div>';
   $('drows').innerHTML=h||'<div class="empty">Nicio altă predicție.</div>';
   renderSum(list,thr);
-  const tl=S.trades.filter(x=>x.evId===S.det.evId&&!isBot(x.w)).slice(0,12);
+  const tl=S.trades.filter(x=>x.evId===S.det.evId&&bigPriceOk(x)&&!isBot(x.w)).slice(0,12);
   $('dtr').innerHTML=tl.length?tl.map(x=>trHtml(x,false)).join(''):'<div class="empty">Niciun pariu peste pragul ales.</div>';
 }
 async function loadChart(){
@@ -829,7 +841,7 @@ async function tick(){
 }
 
 /* ---------- setări + evenimente ---------- */
-const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn','odt','odw','odp','odph','odm','odsr','odauto'];
+const IDS=['thr','win','ref','sort','hide','wk','minv','phase','bigv','lv','okey','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn','odt','odw','odp','odph','odm','odsr','odauto','bpmin','bpmax'];
 function save(){try{const c={types:[...S.types],sport:S.sport,v:3};IDS.forEach(i=>c[i]=$(i).type==='checkbox'?$(i).checked:$(i).value);localStorage.setItem('cfg2',JSON.stringify(c))}catch(e){}}
 try{const c=JSON.parse(localStorage.getItem('cfg2')||'{}');
   if(c.types&&c.types.length&&c.v>=3) S.types=new Set(c.types);
@@ -988,6 +1000,7 @@ async function jgetRetry(u){try{return await jget(u)}catch(e){if(/429|503/.test(
 function posLabel(a){
   const it=S.items.get(a.tok); if(it) return it.label;
   const mk=S.mk.get(a.cid);
+  if(mk) return fullLabel(mk,a.outcome);
   if(mk&&mk.yn&&a.outcome==='No'){const y=(S.byEv.get(mk.ev.id)||[]).find(x=>x.m.conditionId===a.cid);return 'NU: '+(y?y.label:mk.line)}
   return `${a.title} (${a.outcome})`;
 }
@@ -1087,7 +1100,7 @@ function renderWallet(){
     const P=((w.pos&&w.pos.data)||[]).filter(p=>!only||mkEv(p.condition_id)).slice(0,25);
     $('wlpos').innerHTML=P.length?P.map(p=>{
       const mk=mkEv(p.condition_id),up=p.unrealized_pnl;
-      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${p.token_id}"`:''}><b>${esc(p.title||'(fără titlu)')}</b> · ${esc(p.outcome)}${mk?' · <small>în pagină, apasă pentru detalii</small>':''}<br>${usd(p.current_value)} · a intrat la <b>${(p.avg_price*100).toFixed(0)}%</b> → acum <b>${(p.current_price*100).toFixed(0)}%</b>${up!=null?` · <b class="${up>=0?'up':'dn'}">${up>=0?'+':'−'}${usd(Math.abs(up))}</b> nerealizat`:''}${p.first_entry_at?` · intrat ${tmf(p.first_entry_at)}`:''}</div>`;
+      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${p.token_id}"`:''}><b>${esc(p.title||'(fără titlu)')}</b> · ${esc(mk?fullLabel(mk,p.outcome):p.outcome)}${mk?' · <small>în pagină, apasă pentru detalii</small>':''}<br>${usd(p.current_value)} · a intrat la <b>${(p.avg_price*100).toFixed(0)}%</b> → acum <b>${(p.current_price*100).toFixed(0)}%</b>${up!=null?` · <b class="${up>=0?'up':'dn'}">${up>=0?'+':'−'}${usd(Math.abs(up))}</b> nerealizat`:''}${p.first_entry_at?` · intrat ${tmf(p.first_entry_at)}`:''}</div>`;
     }).join(''):'<div class="empty">Nicio poziție deschisă peste 20 $'+(only?' în piețele din pagină':'')+'.</div>';
   }
   // tranzacții
@@ -1098,7 +1111,7 @@ function renderWallet(){
     for(const t of all){if(t.timestamp<d24) continue;const c=t.size*t.price;if(t.side==='BUY')b+=c;else sl+=c}
     $('wltr').innerHTML=(all.length?`<div class="meta">Ultimele 24h (din cele ${all.length} tranzacții aduse): cumpărat ${usd(b)} · vândut ${usd(sl)}</div>`:'')+(T.length?T.map(t=>{
       const mk=mkEv(t.condition_id),c=t.size*t.price;
-      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${t.token_id}"`:''}><b class="${t.side==='BUY'?'up':'dn'}">${t.side==='BUY'?'▲ cumpărat':'▼ vândut'} ${usd(c)}</b> · ${esc(t.outcome)} la ${(t.price*100).toFixed(0)}% · ${tmf(t.timestamp)}<br>${esc(t.title||'')}${mk?' <small>(în pagină)</small>':''}</div>`;
+      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${t.token_id}"`:''}><b class="${t.side==='BUY'?'up':'dn'}">${t.side==='BUY'?'▲ cumpărat':'▼ vândut'} ${usd(c)}</b> · ${esc(mk?fullLabel(mk,t.outcome):t.outcome)} la ${(t.price*100).toFixed(0)}% · ${tmf(t.timestamp)}<br>${esc(t.title||'')}${mk?' <small>(în pagină)</small>':''}</div>`;
     }).join(''):'<div class="empty">Nicio tranzacție'+(only?' în piețele din pagină':'')+'.</div>');
   }
 }
@@ -1134,7 +1147,7 @@ async function runFeed(){
     let seen=0;try{seen=+localStorage.getItem('fseen')||0}catch(e){}
     out.innerHTML=all.length?all.slice(0,50).map(({t,f})=>{
       const mk=S.mk.get(t.condition_id),c=t.size*t.price,nw=t.timestamp>seen;
-      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${t.token_id}"`:''}><a href="#" class="wlink" data-wa="${f.a}" data-wn="${esc(f.n)}">${esc(f.n||short(f.a))}</a> · <b class="${t.side==='BUY'?'up':'dn'}">${t.side==='BUY'?'▲ cumpărat':'▼ vândut'} ${usd(c)}</b> · ${esc(t.outcome)} la ${(t.price*100).toFixed(0)}%${nw?' <span class="bd bu">NOU</span>':''}<br><small>${tmf(t.timestamp)} · ${esc(t.title||'')}${mk?' · în pagină':''}</small></div>`;
+      return `<div class="tx ${mk?'wlk':''}" ${mk?`data-ev="${mk.ev.id}" data-tk="${t.token_id}"`:''}><a href="#" class="wlink" data-wa="${f.a}" data-wn="${esc(f.n)}">${esc(f.n||short(f.a))}</a> · <b class="${t.side==='BUY'?'up':'dn'}">${t.side==='BUY'?'▲ cumpărat':'▼ vândut'} ${usd(c)}</b> · ${esc(mk?fullLabel(mk,t.outcome):t.outcome)} la ${(t.price*100).toFixed(0)}%${nw?' <span class="bd bu">NOU</span>':''}<br><small>${tmf(t.timestamp)} · ${esc(t.title||'')}${mk?' · în pagină':''}</small></div>`;
     }).join(''):'<div class="empty">Nicio tranzacție recentă la portofelele urmărite.</div>';
     st.textContent=`Actualizat ${new Date().toLocaleTimeString('ro-RO')}`;
     try{localStorage.setItem('fseen',String(Math.floor(Date.now()/1000)))}catch(e){}
@@ -1488,7 +1501,7 @@ $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
 $('chart').addEventListener('pointermove',tipAt);
 $('chart').addEventListener('pointerdown',tipAt);
-['thr','win','hide','sort','q','minv','phase','bigv','lv','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn'].forEach(id=>$(id).addEventListener('input',()=>{save();render();renderDetRows()}));
+['thr','win','hide','sort','q','minv','phase','bigv','lv','fvol','fspr','fpmin','fpmax','fstart','fbot','fbotn','bpmin','bpmax'].forEach(id=>$(id).addEventListener('input',()=>{save();render();renderDetRows()}));
 $('ref').addEventListener('change',()=>{save();tick()});
 $('wk').addEventListener('change',()=>{save();tick()});
 try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
