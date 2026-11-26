@@ -20,6 +20,8 @@ const GROUPS = [
   [/rugby/i, ['Rugby League', 'Rugby Union']]
 ];
 
+const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+
 async function cached(url, ttl) {
   const ck = url.replace(/apiKey=[^&]+/, '');
   const hit = MEM.get(ck);
@@ -82,6 +84,86 @@ async function oddsMatch(url, req, cors) {
   return out({ found: true, home: best.home, away: best.away, commence: best.commence, books, probs, remaining: od.remaining });
 }
 
+function summarize(ev, x) {
+  const per = {}, pin = {}, tot = {};
+  let books = 0;
+  for (const bk of ev.bookmakers || []) {
+    const h = (bk.markets || []).find(m => m.key === 'h2h');
+    if (h) {
+      const raw = h.outcomes.map(o => 1 / o.price), S = raw.reduce((a, b) => a + b, 0);
+      books++;
+      h.outcomes.forEach((o, i) => { const p = raw[i] / S; (per[o.name] = per[o.name] || []).push(p); if (bk.key === 'pinnacle') pin[o.name] = p; });
+    }
+    const t = (bk.markets || []).find(m => m.key === 'totals');
+    if (t) {
+      const byPt = {};
+      for (const o of t.outcomes) (byPt[o.point] = byPt[o.point] || {})[o.name] = 1 / o.price;
+      for (const [pt, v] of Object.entries(byPt)) if (v.Over && v.Under) { const S = v.Over + v.Under, a = tot[pt] = tot[pt] || { o: [], u: [] }; a.o.push(v.Over / S); a.u.push(v.Under / S); }
+    }
+  }
+  const probs = {};
+  for (const [n, a] of Object.entries(per)) probs[n] = { avg: mean(a), pin: pin[n] ?? null, min: Math.min(...a), max: Math.max(...a) };
+  const totals = {};
+  for (const [pt, a] of Object.entries(tot)) if (a.o.length >= 2) totals[pt] = { over: mean(a.o), under: mean(a.u), n: a.o.length };
+  return { found: true, home: ev.home_team, away: ev.away_team, commence: ev.commence_time, books, probs, totals, sk: x.sk };
+}
+
+// Mai multe meciuri deodată: caută ligile, apoi cere cotele pe ligă (1 cerere pe ligă, nu pe meci)
+async function oddsBatch(req, cors) {
+  const out = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { ...cors, 'Content-Type': 'application/json' } });
+  const key = req.headers.get('x-odds-key');
+  if (!key) return out({ error: 'Lipsește cheia The Odds API' }, 400);
+  let body; try { body = await req.json(); } catch (e) { return out({ error: 'Cerere invalidă' }, 400); }
+  const ms = (body.matches || []).slice(0, 30);
+  const sp = await cached(`${OA}/sports?apiKey=${key}`, 3600);
+  if (!sp.ok) return out({ error: 'The Odds API a răspuns ' + sp.status + (sp.status === 401 ? ' (cheie invalidă)' : '') }, 502);
+  const all = sp.json.filter(s => s.active && !s.has_outrights);
+  const cand = new Map();
+  for (const m of ms) {
+    const groups = new Set();
+    for (const [re, gs] of GROUPS) if (re.test((m.tags || []).join(' '))) gs.forEach(g => groups.add(g));
+    let c = all.filter(s => groups.has(s.group));
+    const nar = c.filter(s => (m.tags || []).some(t => norm(t).length > 2 && sim(t, s.title) >= 1));
+    if (nar.length) c = nar;
+    m._keys = c.slice(0, 14).map(s => s.key);
+    for (const s of c.slice(0, 14)) if (cand.size < 38) cand.set(s.key, s);
+  }
+  const evs = {}, keys = [...cand.keys()];
+  let k = 0;
+  await Promise.all(Array.from({ length: 8 }, async () => {
+    while (k < keys.length) {
+      const sk = keys[k++];
+      const r = await cached(`${OA}/sports/${sk}/events?apiKey=${key}&dateFormat=iso`, 600);
+      if (r.ok) evs[sk] = r.json;
+    }
+  }));
+  const matched = [];
+  ms.forEach((m, i) => {
+    let best = null;
+    for (const sk of m._keys || []) for (const e of evs[sk] || []) {
+      const sc = Math.max(sim(m.a, e.home_team) + sim(m.b, e.away_team), sim(m.a, e.away_team) + sim(m.b, e.home_team));
+      const dt = m.start ? Math.abs(Date.parse(e.commence_time) - m.start) : 0;
+      if (sc >= 1.6 && dt <= 12 * 3600e3 && (!best || sc > best.sc)) best = { sc, sk, e };
+    }
+    if (best) matched.push({ i, ...best });
+  });
+  const cnt = {};
+  matched.forEach(x => cnt[x.sk] = (cnt[x.sk] || 0) + 1);
+  const chosen = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0]);
+  const oddsBy = {};
+  let remaining = null;
+  await Promise.all(chosen.map(async sk => {
+    const r = await cached(`${OA}/sports/${sk}/odds?apiKey=${key}&regions=eu&markets=h2h,totals&oddsFormat=decimal`, 900);
+    if (r.ok) { oddsBy[sk] = r.json; if (r.remaining != null) remaining = r.remaining; }
+  }));
+  const results = {};
+  for (const x of matched) {
+    const ev = (oddsBy[x.sk] || []).find(e => e.id === x.e.id);
+    if (ev) results[x.i] = summarize(ev, x);
+  }
+  return out({ results, remaining, leagues: chosen.length, matched: matched.length, total: ms.length });
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -91,6 +173,10 @@ export default {
       'Access-Control-Allow-Headers': 'Content-Type,x-odds-key'
     };
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+    if (url.pathname === '/odds/batch' && req.method === 'POST') {
+      try { return await oddsBatch(req, cors); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }); }
+    }
     if (url.pathname === '/odds/match') {
       try { return await oddsMatch(url, req, cors); }
       catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }); }
