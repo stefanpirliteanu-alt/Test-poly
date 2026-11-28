@@ -44,7 +44,7 @@ svg{display:block}
 /* detaliu */
 #sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:20}
 #sheet[hidden]{display:none}
-#bt,#sm,#fl,#ex,#od,#bp{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#ex[hidden],#od[hidden],#bp[hidden]{display:none}
+#bt,#sm,#fl,#ex,#od,#bp,#lab{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:25}#ex[hidden],#od[hidden],#bp[hidden],#lab[hidden]{display:none}
 .bpc{border-left:3px solid var(--up)}.bpc.w{border-left-color:var(--ac);opacity:.92}.bpc input{width:92px}#wl{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:30}#bt[hidden],#sm[hidden],#fl[hidden],#wl[hidden]{display:none}
 a.wlink{color:var(--ac);text-decoration:underline}.wlk{cursor:pointer}.tx{padding:7px 0;border-top:1px solid #2a4237;font:13px/1.45 system-ui,sans-serif}
 .smk{cursor:pointer}.smk .wr{border-top:1px solid #2a4237}
@@ -85,7 +85,7 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
 <header>
   <h1>Polymarket Sport Radar</h1>
   <div id="st">Se încarcă…</div>
-  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="flbtn" style="margin-top:8px">★ Urmărite</button> <button class="chip on" id="bpbtn" style="margin-top:8px;background:var(--up);border-color:var(--up)">⭐ Cele mai bune pariuri</button> <button class="chip on" id="odbtn" style="margin-top:8px">Scăderi de cotă</button> <button class="chip" id="exbtn" style="margin-top:8px">Sistem expert</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
+  <button class="chip" id="smbtn" style="margin-top:8px">Bani deștepți</button> <button class="chip" id="flbtn" style="margin-top:8px">★ Urmărite</button> <button class="chip on" id="bpbtn" style="margin-top:8px;background:var(--up);border-color:var(--up)">⭐ Cele mai bune pariuri</button> <button class="chip" id="labbtn" style="margin-top:8px">🧪 Laborator filtre</button> <button class="chip on" id="odbtn" style="margin-top:8px">Scăderi de cotă</button> <button class="chip" id="exbtn" style="margin-top:8px">Sistem expert</button> <button class="chip" id="btbtn" style="margin-top:8px">Backtest pe meciuri terminate</button>
 </header>
 <div class="sc" id="sports"></div>
 <div class="bar" id="chips"></div>
@@ -149,6 +149,14 @@ h4{margin:16px 0 2px;color:var(--ac);font-size:15px}
     <div class="bar" style="padding:6px 0"><button class="chip on" id="bprun">Analizează acum</button></div>
     <div class="meta" id="bpst"></div>
     <div id="bpout" style="font:14px/1.5 system-ui,sans-serif"></div>
+  </div>
+</div>
+<div id="lab" hidden>
+  <div class="sh">
+    <div class="top"><button id="labx" aria-label="Închide">✕</button><div><h2>Laborator filtre</h2><div class="meta">Testează singur sute de combinații de filtre pe meciuri deja terminate și păstrează doar ce rezistă pe date nefolosite la alegere. Rezultatul se folosește automat în „Cele mai bune pariuri”.</div></div></div>
+    <div class="bar" style="padding:6px 0"><label>Date din ultimele <select id="labd"><option value="14">14 zile</option><option value="30" selected>30 de zile</option><option value="60">60 de zile (mai lent)</option><option value="90">90 de zile (cel mai lent)</option></select></label><button class="chip on" id="labrun">Rulează analiza</button></div>
+    <div class="meta" id="labst"></div>
+    <div id="labout" style="font:14px/1.5 system-ui,sans-serif"></div>
   </div>
 </div>
 <div id="od" hidden>
@@ -1071,7 +1079,7 @@ S.fol=(()=>{try{return JSON.parse(localStorage.getItem('fol')||'[]')}catch(e){re
 const folSave=()=>{try{localStorage.setItem('fol',JSON.stringify(S.fol))}catch(e){}$('flbtn').textContent=`★ Urmărite (${S.fol.length})`};
 const isFol=a=>S.fol.some(x=>x.a.toLowerCase()===String(a).toLowerCase());
 const tmf=ts=>new Date(ts*1000).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-const anyOverlay=()=>{document.body.style.overflow=(!$('bp').hidden||!$('od').hidden||!$('ex').hidden||!$('sheet').hidden||!$('bt').hidden||!$('sm').hidden||!$('fl').hidden||!$('wl').hidden)?'hidden':''};
+const anyOverlay=()=>{document.body.style.overflow=(!$('lab').hidden||!$('bp').hidden||!$('od').hidden||!$('ex').hidden||!$('sheet').hidden||!$('bt').hidden||!$('sm').hidden||!$('fl').hidden||!$('wl').hidden)?'hidden':''};
 function wlBtn(){const f=S.wl&&isFol(S.wl.a);$('wlfb').textContent=f?'★ Urmărit (apasă ca să renunți)':'★ Urmărește';$('wlfb').className='chip'+(f?' on':'')}
 async function openWallet(addr,name){
   if(!addr||addr==='?') return;
@@ -1567,9 +1575,10 @@ function bpScore(c){
   if(hrs>=1&&hrs<=12){s+=6;R.push(`începe în ${hrs.toFixed(1)} ore`)}else if(hrs<1){s-=4;Wn.push('începe în mai puțin de o oră')}else if(hrs>30){s-=3;Wn.push('mai sunt peste 30 de ore: informațiile se pot schimba')}
   if(pf>=0.48&&pf<=0.70){s+=8;R.push(`cotă corectă ${(1/pf).toFixed(2)}: zonă echilibrată între risc și câștig`)}else if(pf>0.70) s+=2;else s+=4;
   s+=it.type==='ml'?6:it.type==='dc'?4:2;
+  if(c.lab){s+=15;R.push(`se încadrează într-un tipar validat pe meciuri istorice: ${c.lab.desc}`)}
   s=Math.max(0,Math.min(100,s));
   const margin=bk&&d<=3?0.03:bk?0.05:0.08,fair=1/pf,minOdds=Math.max(1.30,fair*(1+margin));
-  const rec=!!bk&&d<=4&&s>=66;
+  const rec=(!!bk&&d<=4&&s>=66)||(!!c.lab&&!(bk&&d>7)&&s>=60);
   return {score:s,pf,fair,minOdds,d,R,Wn,rec,conf:rec?'mare':(bk&&s>=58?'medie':'scăzută')};
 }
 async function bpRun(){
@@ -1612,7 +1621,7 @@ async function bpRun(){
     let tr=[];try{tr=await fetchTrades(cids,500)}catch(e){}
     const byTok=new Map();for(const x of tr){if(!byTok.has(x.tok)) byTok.set(x.tok,[]);byTok.get(x.tok).push(x)}
     for(const c of top){const w=new Set();let net=0;for(const x of byTok.get(c.it.id)||[]){if(x.ts<now-3600e3) continue;const v=x.size*x.price;if(x.side==='BUY'){net+=v;if(x.w&&!isBot(x.w)) w.add(x.w)}else net-=v}c.fl={buyers:w.size,net}}
-    const scored=top.map(c=>({c,r:bpScore(c)})).filter(x=>1/x.r.pf>=1.30&&x.r.pf>=0.30);
+    const scored=top.map(c=>{c.lab=labMatch(c);return {c,r:bpScore(c)}}).filter(x=>1/x.r.pf>=1.30&&x.r.pf>=0.30);
     // un singur pariu pe meci: cel mai bun tip
     const best=new Map();for(const x of scored){const k=x.c.it.evId,b=best.get(k);if(!b||x.r.score>b.r.score) best.set(k,x)}
     const list=[...best.values()].sort((a,b)=>b.r.score-a.r.score);
@@ -1630,7 +1639,7 @@ async function bpRun(){
         ${r.Wn.length?`<div class="meta" style="color:var(--ac)">Atenție: ${r.Wn.map(esc).join(' · ')}</div>`:''}
         <div style="margin-top:6px">Cota la casa ta: <input type="number" step="0.01" min="1" class="bpo" data-pf="${r.pf}" placeholder="ex. 2,10"> <span class="bpv"></span></div></div>`;};
     st.textContent=`Am analizat ${matches.length} meciuri din ${new Set([...evs.values()].map(m=>evSport(m.ev))).size} sporturi · ${new Date(now).toLocaleTimeString('ro-RO')}${bq.remaining!=null?` · credite The Odds API rămase: ${bq.remaining}`:''}`;
-    out.innerHTML=(bq.note?`<div class="bx"><div class="meta" style="color:var(--ac)">${esc(bq.note)}</div></div>`:'')+
+    out.innerHTML=labBanner()+(bq.note?`<div class="bx"><div class="meta" style="color:var(--ac)">${esc(bq.note)}</div></div>`:'')+
       (recs.length?`<h4>Recomandate (${recs.length})</h4>`+recs.map(x=>card(x,false)).join(''):'<div class="bx"><div class="empty"><b>Niciun pariu nu trece de toate verificările acum.</b> Asta e normal: majoritatea zilelor nu au selecții cu avantaj clar. Nu paria doar ca să pariezi.</div></div>')+
       (watch.length?`<h4>De urmărit (încredere mai mică)</h4>`+watch.map(x=>card(x,true)).join(''):'')+
       '<div class="bx"><h4>Cum folosești asta</h4><div class="meta">1) „Cota corectă” e estimarea mea fără marja casei, făcută din casele de pariuri (cu greutate mai mare pentru Pinnacle) și din Polymarket. 2) „Cota minimă” e cota sub care nu merită, pentru că nu ai marjă de siguranță. 3) La casa ta, scrie cota găsită în câmpul de pe card și îți spun dacă merită. 4) Verifică echipele de start și accidentările înainte. Nimic de aici nu garantează un câștig. Piețele sunt în mare parte eficiente, iar majoritatea celor care pariază pierd pe termen lung. Mizează doar sume pe care ți le permiți pierdute. Nu sunt consilier financiar.</div></div>';
@@ -1648,6 +1657,147 @@ $('bpout').addEventListener('input',e=>{
   v.innerHTML=o<1.3?'<b class="dn">sub 1,30</b>':ev>=4?`<b class="up">valoare: +${ev.toFixed(1)}% așteptat</b>`:ev>=0?`<b style="color:var(--ac)">la limită: ${ev>=0?'+':''}${ev.toFixed(1)}%</b>`:`<b class="dn">nu merită: ${ev.toFixed(1)}%</b>`;
 });
 $('bpout').addEventListener('click',e=>{if(e.target.closest('input'))return;const c=e.target.closest('.bpc');if(!c)return;$('bp').hidden=true;anyOverlay();openDetail(c.dataset.ev,c.dataset.tk)});
+
+
+/* ---------- laborator: testează filtre pe meciuri terminate, cu validare pe date nefolosite ---------- */
+S.lab=(()=>{try{return JSON.parse(localStorage.getItem('lab')||'null')}catch(e){return null}})();
+const LAB_TYPES=new Set(['ml','total','btts','dc','spread']);
+const LAB_ATTRS=['type','sport','role','band','H','stable','mom','liq'];
+const roleOf=(type,short)=>{const t=String(short||'').toLowerCase();if(type==='ml') return /egalit|draw/.test(t)?'draw':'team';if(type==='total') return /^peste|^over/.test(t)?'over':/^sub|^under/.test(t)?'under':'other';if(type==='btts') return 'yes';return type==='dc'?'dc':'team'};
+const bandOf=p=>p<0.40?'b1':p<0.55?'b2':'b3';
+const liqOf=v=>v>=100000?2:v>=30000?1:0;
+const momOf=j=>j<=-3?'dip':j>=3?'spike':'calm';
+const labProfit=(won,p)=>{const e=Math.min(0.99,p+0.01);return won?1/e-1:-1};   // intrare cu 1 pp mai scump decât prețul de mijloc
+function clusterStat(rows){
+  const g=new Map();for(const r of rows){const o=g.get(r.eid)||{y:0,n:0};o.y+=r.y;o.n++;g.set(r.eid,o)}
+  const G=g.size,N=rows.length;if(G<2) return {n:N,g:G,r:0,se:1};
+  let Y=0;for(const o of g.values()) Y+=o.y;const r=Y/N;let ss=0;for(const o of g.values()){const u=o.y-r*o.n;ss+=u*u}
+  return {n:N,g:G,r,se:Math.sqrt(ss*G/(G-1))/N};                 // eroare robustă pe meci, nu pe selecție
+}
+const labMatchS=(rule,s)=>rule.every(([a,v])=>a==='liq'?s.liq>=v:a==='stable'?s.stable===true:s[a]===v);
+const BAND_TXT={b1:'șansă 25–40%',b2:'șansă 40–55%',b3:'șansă 55–76%'},MOM_TXT={dip:'după o scădere de cel puțin 3 pp',calm:'preț calm',spike:'după o creștere de cel puțin 3 pp'},ROLE_TXT={draw:'egalitate',team:'echipă/jucător',over:'„peste”',under:'„sub”',yes:'ambele marchează',dc:'șansă dublă',other:'altele'};
+const ruleTxt=rule=>rule.map(([a,v])=>a==='type'?tname(v):a==='sport'?v:a==='role'?ROLE_TXT[v]||v:a==='band'?BAND_TXT[v]:a==='H'?`cu ${v} h înainte de start`:a==='stable'?'preț stabil (±2 pp în 3 h)':a==='mom'?MOM_TXT[v]:`volum meci ≥ ${v===2?'100.000':'30.000'} $`).join(' · ');
+const pc=(v,d=1)=>(v>=0?'+':'')+(v*100).toFixed(d)+'%';
+async function labCollect(days,st){
+  const since=new Date(Date.now()-days*864e5).toISOString();let evs=[];
+  for(let pg=0;pg<(days>45?5:3);pg++){try{evs=evs.concat(await jget(`${G}/events?tag_id=1&closed=true&limit=200&offset=${pg*200}&order=volume&ascending=false&end_date_min=${since}`))}catch(e){if(pg===0) throw e}}
+  const toks=[];
+  for(const ev of evs){
+    const start=Date.parse(ev.startTime||''); if(!start) continue;
+    const mk=ev.markets||[];if(mk.filter(m=>mtype(m,ev)==='ml').length>=6) continue;
+    const sport=evSport(ev),evVol=+ev.volume||0;
+    for(const m of mk){
+      const type=mtype(m,ev);if(!LAB_TYPES.has(type)) continue;
+      const outs=arr(m.outcomes),pr=arr(m.outcomePrices).map(Number),tk=arr(m.clobTokenIds);if(!tk.length||pr.length!==outs.length) continue;
+      const yn=outs.length===2&&/^yes$/i.test(outs[0]),line=m.groupItemTitle||m.question,ctx=`${m.question||''} ${m.groupItemTitle||''} ${m.sportsMarketType||''} ${ev.title||''}`.toLowerCase();
+      outs.forEach((o,i)=>{
+        if(yn&&i===1) return;if(!(pr[i]>=0.99||pr[i]<=0.01)) return;
+        toks.push({tok:tk[i],won:pr[i]>=0.99,eid:ev.id,start,sport,type,role:roleOf(type,nice(type,o,line,yn,ctx).short),evVol});
+      });
+    }
+  }
+  toks.sort((a,b)=>b.evVol-a.evVol);toks.length=Math.min(toks.length,days>45?1400:600);
+  let done=0;
+  await pool(toks,6,async t=>{
+    try{const r=await jget(`${C}/prices-history?market=${t.tok}&startTs=${Math.floor(t.start/1000)-20*3600}&endTs=${Math.floor(t.start/1000)}&fidelity=10`);t.h=(r.history||[]).map(x=>({t:x.t,p:x.p}))}catch(e){t.h=[]}
+    st.textContent=`Istoric prețuri ${++done}/${toks.length}…`;
+  });
+  const samples=[];
+  for(const t of toks){
+    const h=t.h;if(!h||h.length<10) continue;const S0=t.start/1000;
+    for(const H of [12,3,1]){
+      const T=S0-H*3600;let i=-1;for(let k=0;k<h.length;k++){if(h[k].t<=T) i=k;else break}
+      if(i<3||T-h[i].t>2400) continue;
+      const p=h[i].p;if(p<0.25||p>0.76) continue;
+      let ref=null;for(let k=i;k>=0;k--){if(h[k].t<=T-1800){ref=h[k];break}}
+      const win=h.filter(x=>x.t<=T&&x.t>=T-3*3600);if(win.length<4) continue;
+      const ps=win.map(x=>x.p),range=(Math.max(...ps)-Math.min(...ps))*100;
+      samples.push({eid:t.eid,start:t.start,sport:t.sport,type:t.type,role:t.role,H,band:bandOf(p),stable:range<=2,mom:momOf(ref?(p-ref.p)*100:0),liq:liqOf(t.evVol),p,won:t.won,y:labProfit(t.won,p)});
+    }
+  }
+  return {samples,tokens:toks.length};
+}
+async function labAnalyze(samples,st){
+  const vals={};
+  for(const a of LAB_ATTRS) vals[a]=[...new Set(samples.map(s=>s[a]))].filter(v=>a==='stable'?v===true:a==='liq'?v>=1:true);
+  if(vals.liq.length) vals.liq=[...new Set([1,2])].filter(v=>samples.some(s=>s.liq>=v));
+  const rules=[];
+  const rec=(from,cur)=>{if(cur.length) rules.push(cur.slice());if(cur.length===3) return;for(let i=from;i<LAB_ATTRS.length;i++){const a=LAB_ATTRS[i];for(const v of vals[a]){cur.push([a,v]);rec(i+1,cur);cur.pop()}}};
+  rec(0,[]);
+  const evStart=new Map();samples.forEach(s=>evStart.set(s.eid,s.start));
+  const eids=[...evStart.entries()].sort((a,b)=>a[1]-b[1]).map(x=>x[0]),cut=Math.floor(eids.length*0.6),ds=new Set(eids.slice(0,cut));
+  const disc=samples.filter(s=>ds.has(s.eid)),val=samples.filter(s=>!ds.has(s.eid));
+  const base=clusterStat(samples);
+  // benzi de preț: calibrare
+  const bands=['b1','b2','b3'].map(b=>{const r=samples.filter(s=>s.band===b);return {b,n:r.length,imp:r.length?mean(r.map(x=>x.p)):0,win:r.length?r.filter(x=>x.won).length/r.length:0,st:clusterStat(r)}});
+  // un singur atribut (privire de ansamblu)
+  const singles=[];
+  for(const rl of rules.filter(r=>r.length===1)){const rr=samples.filter(x=>labMatchS(rl,x));if(rr.length>=40) singles.push({rule:rl,st:clusterStat(rr)})}
+  // descoperire pe primele 60% din meciuri
+  const cands=[];let k=0;
+  for(const rl of rules){
+    const rr=disc.filter(x=>labMatchS(rl,x)); if(rr.length<30) continue;
+    const c=clusterStat(rr); if(c.g<12) continue;
+    cands.push({rule:rl,disc:c,lb:c.r-1.64*c.se});
+    if(++k%200===0){st.textContent=`Testez combinații… ${k}`;await new Promise(r=>setTimeout(r,0))}
+  }
+  cands.sort((a,b)=>b.lb-a.lb);
+  const top=cands.slice(0,15);
+  for(const t of top){
+    const vr=val.filter(x=>labMatchS(t.rule,x)),v=clusterStat(vr);t.val=v;
+    t.ok=v.g>=10&&v.n>=25&&v.r-2.4*v.se>0;                       // prag strict: 15 candidați testați pe date noi
+    t.soft=!t.ok&&v.g>=10&&v.r>0&&v.r-1.64*v.se>-0.02;
+  }
+  const ses=top.map(t=>t.val.se).filter(x=>x>0&&x<2).sort((a,b)=>a-b),power=ses.length?2.4*ses[Math.floor(ses.length/2)]:null;
+  return {at:Date.now(),power,nS:samples.length,nE:eids.length,nDisc:cut,rules:rules.length,tested:cands.length,base,bands,singles,top,validated:top.filter(t=>t.ok).map(t=>({rule:t.rule,desc:ruleTxt(t.rule),val:t.val,disc:t.disc}))};
+}
+function labRender(L){
+  const sgl=(attr)=>L.singles.filter(x=>x.rule[0][0]===attr).sort((a,b)=>b.st.r-a.st.r);
+  const line=x=>`<div class="tx"><b>${esc(ruleTxt(x.rule))}</b>: ${x.st.n} selecții din ${x.st.g} meciuri · randament ${pc(x.st.r)} (±${(200*x.st.se).toFixed(1)}%)</div>`;
+  let h=`<div class="bx"><h4>Datele</h4><div>${L.nE} meciuri terminate, ${L.nS} selecții (pariu × moment: 12 h, 3 h și 1 h înainte de start). Am încercat ${L.rules} combinații de filtre; ${L.tested} aveau destule cazuri.</div>
+   <div>Fără niciun filtru: randament <b class="${L.base.r>=0?'up':'dn'}">${pc(L.base.r)}</b> (±${(200*L.base.se).toFixed(1)}%) la fiecare 1 $ mizat, după un cost presupus de 1 pp.</div>
+   <div class="meta">Randamentul negativ fără filtre e normal: piața percepe și un cost. Un filtru bun trebuie să fie clar peste zero.</div></div>`;
+  h+=`<div class="bx"><h4>Calibrarea pieței pe benzi de preț</h4>`+L.bands.map(b=>`<div class="tx"><b>${BAND_TXT[b.b]}</b>: piața estimează ${(b.imp*100).toFixed(0)}%, au câștigat ${(b.win*100).toFixed(0)}% (${b.n} selecții) · randament ${pc(b.st.r)}</div>`).join('')+`<div class="meta">Dacă „au câștigat” e constant peste „piața estimează”, acele prețuri sunt prea mici. Dacă e sub, sunt prea mari.</div></div>`;
+  h+=`<div class="bx"><h4>Rezultatul cercetării</h4>`;
+  if(L.validated.length) h+=`<div><b class="up">${L.validated.length} ${L.validated.length===1?'tipar a rezistat':'tipare au rezistat'}</b> pe meciuri nefolosite la alegere:</div>`+L.validated.map(v=>`<div class="tx"><b>${esc(v.desc)}</b><br><small>pe datele noi: ${v.val.n} selecții din ${v.val.g} meciuri · randament ${pc(v.val.r)} (±${(240*v.val.se/1.2).toFixed(1)}%)</small></div>`).join('')+`<div class="meta">Aceste tipare sunt folosite automat în „Cele mai bune pariuri”.</div>`;
+  else h+=`<div><b>Niciun filtru nu a rezistat pe datele nefolosite la alegere.</b> Înseamnă că, în acest interval, nicio combinație de volum, spread, stabilitate, tip de pariu, sport sau moment nu a bătut prețul pieței. Recomandările rămân posibile doar când casele de pariuri confirmă prețul.</div>`+(L.power!=null?`<div class="bx"><div class="meta"><b>Cât de mult poate vedea această analiză:</b> pe datele de verificare, un filtru ar fi trebuit să aibă un randament de cel puțin <b>${(L.power*100).toFixed(0)}%</b> pe 1 $ mizat ca să fie recunoscut. Avantajele reale din pariuri sunt de obicei de câteva procente, deci „niciun filtru nu a rezistat” NU înseamnă că nu există niciun avantaj. Înseamnă că acest volum de date nu poate confirma unul mic. Mai multe date (60 sau 90 de zile) ajută, dar rămâne o limită.</div></div>`:'');
+  const soft=L.top.filter(t=>t.soft);
+  if(soft.length) h+=`<div class="meta" style="margin-top:8px"><b>Promițătoare, dar neconfirmate</b> (nu sunt folosite):</div>`+soft.map(t=>`<div class="tx">${esc(ruleTxt(t.rule))}<br><small>alegere: ${pc(t.disc.r)} · date noi: ${pc(t.val.r)} (${t.val.n} selecții)</small></div>`).join('');
+  h+=`<div class="meta" style="margin-top:8px">Cum am evitat să mă păcălesc singur: aleg filtrele doar pe primele 60% dintre meciuri (cele mai vechi) și le verific pe ultimele 40%, apoi cer ca limita de jos a randamentului să fie peste zero. Erorile se calculează pe meci, nu pe selecție, pentru că selecțiile aceluiași meci nu sunt independente. Cu o lună de date, un rezultat „valid” poate fi tot noroc: repetă analiza după câteva zile.</div></div>`;
+  h+=`<div class="bx"><h4>Unghiuri (fiecare singur)</h4><div class="meta">Randament la 1 $ mizat, cu marja de eroare între paranteze.</div>`+
+    [['type','După tipul de pariu'],['role','După rol (egalitate, echipă, peste, sub…)'],['sport','După sport'],['H','După momentul față de start'],['mom','După mișcarea prețului'],['band','După preț'],['liq','După volum']].map(([a,t])=>{const r=sgl(a);return r.length?`<div style="margin-top:6px"><b>${t}</b></div>`+r.map(line).join(''):''}).join('')+`</div>`;
+  return h;
+}
+async function runLab(){
+  const st=$('labst'),out=$('labout'),days=+$('labd').value||30;$('labrun').disabled=true;out.innerHTML='';
+  try{
+    st.textContent='Caut meciuri terminate…';
+    const {samples,tokens}=await labCollect(days,st);
+    if(samples.length<200){st.textContent='';out.innerHTML=`<div class="empty">Doar ${samples.length} selecții utilizabile din ${tokens} piețe: prea puține pentru un test serios. Încearcă 30 de zile sau repetă mai târziu.</div>`;return}
+    st.textContent='Testez combinații…';
+    const L=await labAnalyze(samples,st);S.lab=L;
+    try{localStorage.setItem('lab',JSON.stringify({at:L.at,days,nS:L.nS,nE:L.nE,rules:L.rules,tested:L.tested,base:L.base,bands:L.bands,singles:L.singles,top:L.top,power:L.power,validated:L.validated}))}catch(e){}
+    S.lab.days=days;st.textContent=`Gata · ${new Date().toLocaleTimeString('ro-RO')}`;out.innerHTML=labRender(L);
+  }catch(e){st.textContent='';out.innerHTML=`<div class="empty">Eroare: ${esc(e.message)}</div>`}
+  finally{$('labrun').disabled=false}
+}
+function labMatch(c){
+  const L=S.lab;if(!L||!L.validated||!L.validated.length||Date.now()-L.at>14*864e5) return null;
+  const it=c.it,hrs=c.hrs,p=it.p,mv=c.mv;
+  const H=hrs>=8&&hrs<=16?12:hrs>=2&&hrs<=4?3:hrs>=0.5&&hrs<=1.5?1:null;
+  const a={type:it.type,sport:evSport(it.ev),role:roleOf(it.type,it.short),band:(p<0.25||p>0.76)?null:bandOf(p),H,stable:mv?mv.range<=2:null,mom:mv?momOf(mv.jump):null,liq:liqOf(c.evVol)};
+  for(const r of L.validated){if(r.rule.every(([k,v])=>k==='liq'?a.liq>=v:k==='stable'?a.stable===true:a[k]===v)) return r}
+  return null;
+}
+function labBanner(){
+  const L=S.lab;
+  if(!L) return '<div class="bx"><div class="meta" style="color:var(--ac)"><b>Filtrele nu au fost testate încă pe date istorice.</b> Apasă „🧪 Laborator filtre” ca pagina să verifice singură ce funcționează.</div></div>';
+  const age=Math.round((Date.now()-L.at)/864e5);
+  return L.validated&&L.validated.length?`<div class="bx"><div class="meta"><b>Laborator (acum ${age} zile):</b> ${L.validated.length} ${L.validated.length===1?'tipar validat':'tipare validate'} pe date istorice. Selecțiile care se potrivesc primesc bonus și pot deveni „Recomandate”.</div></div>`:`<div class="bx"><div class="meta"><b>Laborator (acum ${age} zile):</b> niciun filtru nu a bătut piața pe date nefolosite la alegere. Doar confirmarea de la casele de pariuri poate face o selecție „Recomandată”.</div></div>`;
+}
+$('labbtn').addEventListener('click',()=>{$('lab').hidden=false;document.body.style.overflow='hidden';if(S.lab&&!$('labout').innerHTML){S.lab.days=S.lab.days||30;$('labout').innerHTML=labRender(S.lab);$('labst').textContent='Rezultat salvat din '+new Date(S.lab.at).toLocaleString('ro-RO',{dateStyle:'short',timeStyle:'short'})}});
+$('labx').addEventListener('click',()=>{$('lab').hidden=true;anyOverlay()});
+$('labrun').addEventListener('click',runLab);
 
 $('x').addEventListener('click',closeDetail);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.det)closeDetail()});
